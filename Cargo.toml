@@ -1,6 +1,6 @@
 [package]
 name = "bellhop"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.85.0"
 description = "A tool for importing Debian packages into aptly-managed repositories"
@@ -19,7 +19,7 @@ flate2 = "1.0"
 log = "0.4"
 fern = "0.7"
 tempfile = "3"
-zip = "2"
+zip = "6"
 
 [dev-dependencies]
 tempfile = "3"
