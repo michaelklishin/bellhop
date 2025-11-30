@@ -62,9 +62,6 @@ cd $src
 print $"Release directory: ($release_dir)"
 ls $release_dir | print
 
-cp -r LICENSE* $release_dir
-cp -r README* $release_dir
-
 cd $release_dir
 
 let artifact_filename = $'($binary)-($version)-($target)'
