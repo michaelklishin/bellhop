@@ -1,0 +1,27 @@
+[profile.default]
+# Run all tests by default
+default-filter = "all()"
+
+# Retry flaky tests up to 2 times
+retries = 2
+
+# Run tests sequentially by default
+test-threads = 1
+
+# Show retry information
+status-level = "retry"
+final-status-level = "pass"
+
+# Show failures immediately as they occur
+failure-output = "immediate"
+
+# Success output only shown at the end
+success-output = "final"
+
+# CI profile: stricter settings for continuous integration
+[profile.ci]
+default-filter = "all()"
+retries = 0
+test-threads = 1
+failure-output = "immediate-final"
+success-output = "never"
