@@ -5,8 +5,8 @@ default-filter = "all()"
 # Retry flaky tests up to 2 times
 retries = 2
 
-# Run tests sequentially by default
-test-threads = 1
+# Run tests in parallel - each test uses isolated temp aptly database
+test-threads = 4
 
 # Show retry information
 status-level = "retry"

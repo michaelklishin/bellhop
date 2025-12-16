@@ -14,7 +14,8 @@
 use crate::errors::BellhopError;
 use flate2::read::GzDecoder;
 use log::{debug, info};
-use std::fs::File;
+use std::fs::{self, File};
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use tar::Archive;
 use tempfile::TempDir;
@@ -105,20 +106,20 @@ fn extract_zip(archive_path: &Path) -> Result<PackageSource, BellhopError> {
         let outpath = extract_path.join(entry_name);
 
         if entry.is_dir() {
-            std::fs::create_dir_all(&outpath)?;
+            fs::create_dir_all(&outpath)?;
         } else {
             if let Some(parent) = outpath.parent() {
-                std::fs::create_dir_all(parent)?;
+                fs::create_dir_all(parent)?;
             }
             let mut outfile = File::create(&outpath)?;
-            std::io::copy(&mut entry, &mut outfile)?;
+            io::copy(&mut entry, &mut outfile)?;
         }
     }
 
     finalize_archive_extraction(temp_dir, archive_path)
 }
 
-fn extract_and_find_debs<R: std::io::Read>(
+fn extract_and_find_debs<R: Read>(
     mut archive: Archive<R>,
     archive_path: &Path,
 ) -> Result<PackageSource, BellhopError> {
@@ -181,13 +182,13 @@ fn extract_nested_tar_archives(dir: &Path) -> Result<(), BellhopError> {
             extract_tar_to_same_dir(&mut archive, &tar_path)?;
         }
 
-        std::fs::remove_file(&tar_path)?;
+        fs::remove_file(&tar_path)?;
     }
 
     Ok(())
 }
 
-fn extract_tar_to_same_dir<R: std::io::Read>(
+fn extract_tar_to_same_dir<R: Read>(
     archive: &mut Archive<R>,
     tar_path: &Path,
 ) -> Result<(), BellhopError> {
@@ -209,7 +210,7 @@ fn extract_tar_to_same_dir<R: std::io::Read>(
 fn find_tar_archives(dir: &Path) -> Result<Vec<PathBuf>, BellhopError> {
     let mut tar_files = Vec::new();
 
-    for entry in std::fs::read_dir(dir)? {
+    for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
         let file_type = entry.file_type()?;
@@ -237,7 +238,7 @@ fn find_deb_files(root: &Path) -> Result<Vec<PathBuf>, BellhopError> {
             continue;
         }
 
-        for entry in std::fs::read_dir(&dir)? {
+        for entry in fs::read_dir(&dir)? {
             let entry = entry?;
             let path = entry.path();
             let file_type = entry.file_type()?;
@@ -251,4 +252,40 @@ fn find_deb_files(root: &Path) -> Result<Vec<PathBuf>, BellhopError> {
     }
 
     Ok(deb_files)
+}
+
+pub fn extract_versions_from_debs(deb_files: &[PathBuf]) -> Result<Vec<String>, BellhopError> {
+    deb_files
+        .iter()
+        .map(|deb_path| {
+            let file_name = deb_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| {
+                    BellhopError::ArchiveExtractionFailed(format!(
+                        "Invalid .deb filename: {}",
+                        deb_path.display()
+                    ))
+                })?;
+            extract_version_from_filename(file_name)
+        })
+        .collect()
+}
+
+pub fn extract_version_from_filename(filename: &str) -> Result<String, BellhopError> {
+    if !filename.ends_with(".deb") {
+        return Err(BellhopError::ArchiveExtractionFailed(format!(
+            "Not a .deb file: {filename}"
+        )));
+    }
+
+    let parts: Vec<&str> = filename.trim_end_matches(".deb").rsplitn(3, '_').collect();
+
+    if parts.len() < 3 {
+        return Err(BellhopError::ArchiveExtractionFailed(format!(
+            "Invalid .deb filename format: {filename}"
+        )));
+    }
+
+    Ok(parts[1].to_string())
 }

@@ -23,6 +23,7 @@ mod handlers;
 
 use common::Project;
 use errors::{BellhopError, ExitCode, map_error_to_exit_code};
+use std::io;
 use std::process;
 
 fn setup_logging() -> Result<(), fern::InitError> {
@@ -30,7 +31,7 @@ fn setup_logging() -> Result<(), fern::InitError> {
         .format(|out, message, record| out.finish(format_args!("[{}] {}", record.level(), message)))
         .level(log::LevelFilter::Info)
         .level_for("bellhop", log::LevelFilter::Debug)
-        .chain(std::io::stderr())
+        .chain(io::stderr())
         .apply()?;
     Ok(())
 }

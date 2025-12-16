@@ -215,9 +215,9 @@ impl AptlyTestContext {
         family: &str,
         distribution: &str,
     ) -> CommandRunResult {
-        let repo_name = format!("repo-{}-{}", prefix, distribution);
-        let snapshot_name = format!("snap-{}-{}-init", prefix, distribution);
-        let publish_prefix = format!("{}/{}/{}", prefix, family, distribution);
+        let repo_name = format!("repo-{prefix}-{distribution}");
+        let snapshot_name = format!("snap-{prefix}-{distribution}-init");
+        let publish_prefix = format!("{prefix}/{family}/{distribution}");
 
         let output = Command::new("aptly")
             .arg(self.config_arg())
@@ -241,7 +241,7 @@ impl AptlyTestContext {
             .arg(self.config_arg())
             .arg("publish")
             .arg("snapshot")
-            .arg(format!("-distribution={}", distribution))
+            .arg(format!("-distribution={distribution}"))
             .arg(&snapshot_name)
             .arg(&publish_prefix)
             .output()?;
@@ -280,7 +280,7 @@ impl AptlyTestContext {
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let publish_prefix = format!("{}/{}/{}", prefix, family, distribution);
+        let publish_prefix = format!("{prefix}/{family}/{distribution}");
 
         for line in stdout.lines() {
             if line.contains(&publish_prefix) && line.contains(snapshot_name) {
@@ -319,7 +319,11 @@ pub fn output_includes(content: &str) -> predicates::str::ContainsPredicate {
 
 /// Get path to a test package file
 pub fn test_package_path(filename: &str) -> PathBuf {
-    PathBuf::from("../debs").join(filename)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("debs")
+        .join(filename)
 }
 
 /// Get path to a test fixture file in tests/fixtures/
@@ -328,9 +332,4 @@ pub fn test_fixture_path(filename: &str) -> PathBuf {
         .join("tests")
         .join("fixtures")
         .join(filename)
-}
-
-/// Check if test packages are available
-pub fn test_packages_available() -> bool {
-    test_package_path("rabbitmq-server_4.1.3-1_all.deb").exists()
 }

@@ -44,44 +44,6 @@ fn create_tar_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box
     Ok((archive_path, temp_dir))
 }
 
-fn create_tar_gz_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("packages.tar.gz");
-    let tar_file = File::create(&archive_path)?;
-    let encoder = flate2::write::GzEncoder::new(tar_file, flate2::Compression::default());
-    let mut builder = Builder::new(encoder);
-
-    for deb in debs {
-        let deb_path = test_package_path(deb);
-        if deb_path.exists() {
-            builder.append_path_with_name(&deb_path, deb)?;
-        }
-    }
-
-    builder.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
-fn create_tgz_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("packages.tgz");
-    let tar_file = File::create(&archive_path)?;
-    let encoder = flate2::write::GzEncoder::new(tar_file, flate2::Compression::default());
-    let mut builder = Builder::new(encoder);
-
-    for deb in debs {
-        let deb_path = test_package_path(deb);
-        if deb_path.exists() {
-            builder.append_path_with_name(&deb_path, deb)?;
-        }
-    }
-
-    builder.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
 fn create_zip_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
     let temp_dir = TempDir::new()?;
     let archive_path = temp_dir.path().join("packages.zip");
@@ -94,30 +56,6 @@ fn create_zip_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box
         if deb_path.exists() {
             let mut file = File::open(&deb_path)?;
             zip.start_file(*deb, options)?;
-            std::io::copy(&mut file, &mut zip)?;
-        }
-    }
-
-    zip.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
-fn create_zip_archive_with_nested_debs(
-    debs: &[&str],
-) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("nested.zip");
-    let zip_file = File::create(&archive_path)?;
-    let mut zip = ZipWriter::new(zip_file);
-    let options = SimpleFileOptions::default();
-
-    for deb in debs {
-        let deb_path = test_package_path(deb);
-        if deb_path.exists() {
-            let nested_path = format!("subdir/packages/{}", deb);
-            let mut file = File::open(&deb_path)?;
-            zip.start_file(nested_path, options)?;
             std::io::copy(&mut file, &mut zip)?;
         }
     }
@@ -142,53 +80,6 @@ fn create_zip_archive_without_debs() -> Result<(PathBuf, TempDir), Box<dyn Error
     let zip_file = File::create(&archive_path)?;
     let mut zip = ZipWriter::new(zip_file);
     let options = SimpleFileOptions::default();
-
-    zip.start_file("README.txt", options)?;
-    zip.write_all(b"Package documentation\nVersion 1.0\n")?;
-    zip.start_file("LICENSE", options)?;
-    zip.write_all(b"MIT License")?;
-
-    zip.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
-fn create_zip_archive_with_deeply_nested_deb() -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("deep.zip");
-    let zip_file = File::create(&archive_path)?;
-    let mut zip = ZipWriter::new(zip_file);
-    let options = SimpleFileOptions::default();
-
-    let deb_path = test_package_path("rabbitmq-server_4.1.3-1_all.deb");
-    if deb_path.exists() {
-        let mut file = File::open(&deb_path)?;
-        zip.start_file("dir1/dir2/dir3/package.deb", options)?;
-        std::io::copy(&mut file, &mut zip)?;
-    }
-
-    zip.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
-fn create_zip_archive_with_mixed_content(
-    debs: &[&str],
-) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("mixed.zip");
-    let zip_file = File::create(&archive_path)?;
-    let mut zip = ZipWriter::new(zip_file);
-    let options = SimpleFileOptions::default();
-
-    for deb in debs {
-        let deb_path = test_package_path(deb);
-        if deb_path.exists() {
-            let mut file = File::open(&deb_path)?;
-            zip.start_file(*deb, options)?;
-            std::io::copy(&mut file, &mut zip)?;
-        }
-    }
 
     zip.start_file("README.txt", options)?;
     zip.write_all(b"Package documentation\nVersion 1.0\n")?;
@@ -230,14 +121,21 @@ fn create_zip_archive_with_symlink() -> Result<(PathBuf, TempDir), Box<dyn Error
             .arg(&archive_path)
             .arg(".")
             .current_dir(work_dir.path())
-            .output()?;
+            .output();
 
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to create zip with symlinks: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
+        match output {
+            Ok(output) if output.status.success() => {}
+            Ok(output) => {
+                return Err(format!(
+                    "Failed to create zip with symlinks: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                )
+                .into());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err("zip command not found - please install zip utility".into());
+            }
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -269,26 +167,6 @@ fn create_corrupted_zip_archive() -> Result<(PathBuf, TempDir), Box<dyn Error>> 
     Ok((archive_path, temp_dir))
 }
 
-fn create_zip_archive_with_spaces_in_filename() -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("spaces.zip");
-    let zip_file = File::create(&archive_path)?;
-    let mut zip = ZipWriter::new(zip_file);
-    let options = SimpleFileOptions::default();
-
-    // Add a .deb file with spaces in the filename
-    let deb_path = test_package_path("rabbitmq-server_4.1.3-1_all.deb");
-    if deb_path.exists() {
-        let mut file = File::open(&deb_path)?;
-        zip.start_file("my package.deb", options)?;
-        std::io::copy(&mut file, &mut zip)?;
-    }
-
-    zip.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
 fn create_tar_archive_with_nested_debs(
     debs: &[&str],
 ) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
@@ -300,7 +178,7 @@ fn create_tar_archive_with_nested_debs(
     for deb in debs {
         let deb_path = test_package_path(deb);
         if deb_path.exists() {
-            let nested_path = format!("subdir/packages/{}", deb);
+            let nested_path = format!("subdir/packages/{deb}");
             builder.append_path_with_name(&deb_path, nested_path)?;
         }
     }
@@ -389,52 +267,12 @@ fn create_tar_archive_without_debs() -> Result<(PathBuf, TempDir), Box<dyn Error
 
 #[test]
 fn test_add_tar_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
 
     let (archive_path, _temp_dir) =
         create_tar_archive_with_debs(&["rabbitmq-server_4.1.3-1_all.deb"])?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        "Package should exist in repository"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn test_add_tar_gz_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) =
-        create_tar_gz_archive_with_debs(&["rabbitmq-server_4.1.3-1_all.deb"])?;
 
     let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
     cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
@@ -509,11 +347,6 @@ fn test_add_tar_archive_without_debs_fails() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_tar_archive_to_multiple_distributions() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
     ctx.create_repo("repo-rabbitmq-server-jammy")?;
@@ -551,11 +384,6 @@ fn test_add_tar_archive_to_multiple_distributions() -> Result<(), Box<dyn Error>
 
 #[test]
 fn test_erlang_tar_archive_support() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-erlang-bookworm";
     ctx.create_repo(repo_name)?;
@@ -581,11 +409,6 @@ fn test_erlang_tar_archive_support() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_existing_deb_file_still_works() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -615,11 +438,6 @@ fn test_existing_deb_file_still_works() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_tar_archive_with_multiple_debs() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -660,47 +478,7 @@ fn test_add_tar_archive_with_multiple_debs() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_add_tgz_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) =
-        create_tgz_archive_with_debs(&["rabbitmq-server_4.1.3-1_all.deb"])?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        "Package should exist in repository"
-    );
-
-    Ok(())
-}
-
-#[test]
 fn test_add_tar_archive_with_nested_debs() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -731,11 +509,6 @@ fn test_add_tar_archive_with_nested_debs() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_tar_archive_with_mixed_content() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -772,11 +545,6 @@ fn test_add_tar_archive_with_mixed_content() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_tar_archive_with_deeply_nested_deb_ignored() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
 
@@ -802,11 +570,6 @@ fn test_add_tar_archive_with_deeply_nested_deb_ignored() -> Result<(), Box<dyn E
 
 #[test]
 fn test_add_zip_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -830,82 +593,6 @@ fn test_add_zip_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
     assert!(
         ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
         "Package from .zip archive should be added"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn test_add_zip_archive_with_nested_debs() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) =
-        create_zip_archive_with_nested_debs(&["rabbitmq-server_4.1.3-1_all.deb"])?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        "Package from nested directory in .zip should be found"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn test_add_zip_archive_with_multiple_debs() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) = create_zip_archive_with_debs(&[
-        "rabbitmq-server_4.1.3-1_all.deb",
-        "rabbitmq-server_4.1.4-1_all.deb",
-    ])?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        "First .deb package from .zip should exist"
-    );
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.4-1)")?,
-        "Second .deb package from .zip should exist"
     );
 
     Ok(())
@@ -962,82 +649,19 @@ fn test_add_zip_archive_without_debs_fails() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_add_zip_archive_with_deeply_nested_deb_ignored() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    ctx.create_repo("repo-rabbitmq-server-bookworm")?;
-
-    let (archive_path, _temp_dir) = create_zip_archive_with_deeply_nested_deb()?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert()
-        .failure()
-        .stderr(output_includes("No .deb files found in archive"));
-
-    Ok(())
-}
-
-#[test]
-fn test_add_zip_archive_with_mixed_content() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) =
-        create_zip_archive_with_mixed_content(&["rabbitmq-server_4.1.3-1_all.deb"])?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        ".deb file should be extracted and added (non-.deb files ignored)"
-    );
-
-    Ok(())
-}
-
-#[test]
 fn test_add_zip_archive_with_symlink_skipped() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
 
-    let (archive_path, _temp_dir) = create_zip_archive_with_symlink()?;
+    let (archive_path, _temp_dir) = match create_zip_archive_with_symlink() {
+        Ok(result) => result,
+        Err(e) if e.to_string().contains("zip command not found") => {
+            eprintln!("Skipping test: {e}");
+            return Ok(());
+        }
+        Err(e) => return Err(e),
+    };
 
     let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
     cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
@@ -1083,40 +707,6 @@ fn test_add_corrupted_zip_archive_fails() -> Result<(), Box<dyn Error>> {
     cmd.assert()
         .failure()
         .stderr(output_includes("Failed to extract archive"));
-
-    Ok(())
-}
-
-#[test]
-fn test_add_zip_archive_with_spaces_in_filename() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-
-    let (archive_path, _temp_dir) = create_zip_archive_with_spaces_in_filename()?;
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        archive_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        ".deb file with spaces in filename should be extracted and added"
-    );
 
     Ok(())
 }

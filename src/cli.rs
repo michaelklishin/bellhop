@@ -188,20 +188,32 @@ fn package_operation_subcommands() -> [Command; 3] {
         .arg(suffix_arg.clone())
         .group(distributions_group.clone());
 
+    let version_arg = Arg::new("version")
+        .short('v')
+        .long("version")
+        .value_name("VERSION")
+        .conflicts_with("package_file_path")
+        .help("Version of the package to remove");
+    let package_file_path_arg = Arg::new("package_file_path")
+        .short('p')
+        .long("package-file-path")
+        .value_name("PATH")
+        .conflicts_with("version")
+        .help("Package file path (.deb, .zip, .tar.gz)");
+    let version_or_path_group = ArgGroup::new("input")
+        .args(["version", "package_file_path"])
+        .required(true)
+        .multiple(false);
+
     let remove_cmd = Command::new("remove")
         .about("Remove a .deb package from one or multiple distributions")
-        .arg(
-            Arg::new("version")
-                .short('v')
-                .long("version")
-                .value_name("VERSION")
-                .help("Version of the package to remove")
-                .required(true),
-        )
+        .arg(version_arg)
+        .arg(package_file_path_arg)
         .arg(all_distributions_arg.clone())
         .arg(distributions_arg.clone())
         .arg(suffix_arg.clone())
-        .group(distributions_group.clone());
+        .group(distributions_group.clone())
+        .group(version_or_path_group);
 
     let publish_cmd = Command::new("publish")
         .about("Regenerates all repositories from recent snapshots (created by the 'add' command)")

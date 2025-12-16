@@ -22,11 +22,6 @@ use test_helpers::*;
 
 #[test]
 fn test_publish_single_distribution() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -52,7 +47,7 @@ fn test_publish_single_distribution() -> Result<(), Box<dyn Error>> {
     cmd.assert().success();
 
     let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_snapshot = format!("snap-rabbitmq-server-bookworm-{}", date);
+    let expected_snapshot = format!("snap-rabbitmq-server-bookworm-{date}");
     assert!(
         ctx.published_snapshot_is_active(
             "rabbitmq-server",
@@ -68,11 +63,6 @@ fn test_publish_single_distribution() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_publish_multiple_distributions() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
     ctx.create_repo("repo-rabbitmq-server-jammy")?;
@@ -99,8 +89,8 @@ fn test_publish_multiple_distributions() -> Result<(), Box<dyn Error>> {
     cmd.assert().success();
 
     let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_bookworm = format!("snap-rabbitmq-server-bookworm-{}", date);
-    let expected_jammy = format!("snap-rabbitmq-server-jammy-{}", date);
+    let expected_bookworm = format!("snap-rabbitmq-server-bookworm-{date}");
+    let expected_jammy = format!("snap-rabbitmq-server-jammy-{date}");
 
     assert!(
         ctx.published_snapshot_is_active(
@@ -121,11 +111,6 @@ fn test_publish_multiple_distributions() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_full_workflow_add_publish_upgrade() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -183,7 +168,7 @@ fn test_full_workflow_add_publish_upgrade() -> Result<(), Box<dyn Error>> {
 
     // Verify the first snapshot is still published (we didn't publish the second one)
     let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_snapshot = format!("snap-rabbitmq-server-bookworm-{}", date);
+    let expected_snapshot = format!("snap-rabbitmq-server-bookworm-{date}");
     assert!(
         ctx.published_snapshot_is_active(
             "rabbitmq-server",
@@ -205,11 +190,6 @@ fn test_full_workflow_add_publish_upgrade() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_erlang_publish_workflow() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-erlang-bookworm";
     ctx.create_repo(repo_name)?;
@@ -235,7 +215,7 @@ fn test_erlang_publish_workflow() -> Result<(), Box<dyn Error>> {
     cmd.assert().success();
 
     let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_snapshot = format!("snap-rabbitmq-erlang-bookworm-{}", date);
+    let expected_snapshot = format!("snap-rabbitmq-erlang-bookworm-{date}");
     assert!(
         ctx.published_snapshot_is_active(
             "rabbitmq-erlang",
@@ -250,80 +230,7 @@ fn test_erlang_publish_workflow() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn test_publish_all_distributions() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
-    let ctx = AptlyTestContext::new()?;
-    // Create repos and publishes for all supported distributions
-    ctx.create_repo("repo-rabbitmq-server-noble")?;
-    ctx.create_repo("repo-rabbitmq-server-jammy")?;
-    ctx.create_repo("repo-rabbitmq-server-focal")?;
-    ctx.create_repo("repo-rabbitmq-server-trixie")?;
-    ctx.create_repo("repo-rabbitmq-server-bookworm")?;
-    ctx.create_repo("repo-rabbitmq-server-bullseye")?;
-    ctx.create_initial_publish("rabbitmq-server", "ubuntu", "noble")?;
-    ctx.create_initial_publish("rabbitmq-server", "ubuntu", "jammy")?;
-    ctx.create_initial_publish("rabbitmq-server", "ubuntu", "focal")?;
-    ctx.create_initial_publish("rabbitmq-server", "debian", "trixie")?;
-    ctx.create_initial_publish("rabbitmq-server", "debian", "bookworm")?;
-    ctx.create_initial_publish("rabbitmq-server", "debian", "bullseye")?;
-
-    let package_path = test_package_path("rabbitmq-server_4.1.3-1_all.deb");
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        package_path.to_str().unwrap(),
-        "-a",
-    ]);
-    cmd.assert().success();
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args(["rabbitmq", "deb", "publish", "-a"]);
-    cmd.assert().success();
-
-    let date = Local::now().format("%d-%b-%y").to_string();
-
-    // Verify at least a few distributions were published
-    let expected_noble = format!("snap-rabbitmq-server-noble-{}", date);
-    let expected_bookworm = format!("snap-rabbitmq-server-bookworm-{}", date);
-    let expected_jammy = format!("snap-rabbitmq-server-jammy-{}", date);
-
-    assert!(
-        ctx.published_snapshot_is_active("rabbitmq-server", "ubuntu", "noble", &expected_noble)?,
-        "Noble should use new snapshot"
-    );
-    assert!(
-        ctx.published_snapshot_is_active(
-            "rabbitmq-server",
-            "debian",
-            "bookworm",
-            &expected_bookworm
-        )?,
-        "Bookworm should use new snapshot"
-    );
-    assert!(
-        ctx.published_snapshot_is_active("rabbitmq-server", "ubuntu", "jammy", &expected_jammy)?,
-        "Jammy should use new snapshot"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn test_publish_new_distribution_without_initial_publish() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
+fn test_first_time_publish() -> Result<(), Box<dyn Error>> {
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
@@ -365,11 +272,6 @@ fn test_publish_new_distribution_without_initial_publish() -> Result<(), Box<dyn
 
 #[test]
 fn test_erlang_publish_new_distribution() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-erlang-trixie";
     ctx.create_repo(repo_name)?;

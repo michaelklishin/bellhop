@@ -30,16 +30,17 @@ pub fn add(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> 
 }
 
 pub fn remove(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
-    let version =
-        cli_args
-            .get_one::<String>("version")
-            .ok_or_else(|| BellhopError::MissingArgument {
-                argument: "version".to_string(),
-            })?;
-
     let target_releases = cli::distributions(cli_args, project)?;
 
-    aptly::remove_package(cli_args, version, project, &target_releases)
+    if let Some(version) = cli_args.get_one::<String>("version") {
+        aptly::remove_package(cli_args, version, project, &target_releases)
+    } else if let Some(package_file_path) = cli_args.get_one::<String>("package_file_path") {
+        aptly::remove_package_from_archive(cli_args, package_file_path, project, &target_releases)
+    } else {
+        Err(BellhopError::MissingArgument {
+            argument: "version or package_file_path".to_string(),
+        })
+    }
 }
 
 pub fn publish(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {

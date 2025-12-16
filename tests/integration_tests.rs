@@ -46,11 +46,6 @@ fn test_rabbitmq_deb_remove_help() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_package_to_single_distribution() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
 
@@ -86,11 +81,6 @@ fn test_add_package_to_single_distribution() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_package_to_multiple_distributions() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
 
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
@@ -158,11 +148,6 @@ fn test_add_nonexistent_package_fails() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_remove_package_from_single_distribution() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
 
@@ -204,11 +189,6 @@ fn test_remove_package_from_single_distribution() -> Result<(), Box<dyn Error>> 
 
 #[test]
 fn test_remove_package_from_multiple_distributions() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
 
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
@@ -483,11 +463,6 @@ fn test_snapshot_delete_multiple() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn test_add_and_remove_workflow() -> Result<(), Box<dyn Error>> {
-    if !test_packages_available() {
-        eprintln!("Skipping test: test packages not available");
-        return Ok(());
-    }
-
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
 

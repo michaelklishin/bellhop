@@ -26,7 +26,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Free up disk space
+        run: .github/scripts/free_disk_space.sh
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -50,7 +54,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Free up disk space
+        run: .github/scripts/free_disk_space.sh
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -69,4 +77,4 @@ jobs:
           sudo apt-get install -y aptly
 
       - name: Run tests
-        run: RUST_BACKTRACE=1 cargo nextest run --workspace --no-fail-fast --all-features
+        run: RUST_BACKTRACE=1 cargo nextest run --profile ci --workspace --no-fail-fast --all-features

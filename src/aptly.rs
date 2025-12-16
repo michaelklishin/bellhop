@@ -18,9 +18,10 @@ use crate::{cli, common::Project};
 use chrono::Local;
 use clap::ArgMatches;
 use log::{debug, info};
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 
 const ALL_ARCHITECTURES_ARG: &str = "-architectures=amd64,arm64,armel,armhf,i386";
 const GPG_KEY_ID_ARG: &str = "-gpg-key=0A9AF2115F4687BD29803A206B73A36E6026DFCA";
@@ -33,10 +34,7 @@ fn aptly_command() -> Command {
     cmd
 }
 
-fn check_aptly_output(
-    output: std::process::Output,
-    command: impl Into<String>,
-) -> Result<std::process::Output, BellhopError> {
+fn check_aptly_output(output: Output, command: impl Into<String>) -> Result<Output, BellhopError> {
     if output.status.success() {
         Ok(output)
     } else {
@@ -130,12 +128,95 @@ pub fn remove_package(
     for rel in target_releases {
         let repo_name = repo_name(&project, rel);
 
-        // repo remove
         run_repo_remove(&project, version, &repo_name)?;
 
-        // snapshot
         run_snapshot_drop(&project, rel, &suffix)?;
         run_snapshot_create(&project, &repo_name, rel, &suffix)?;
+    }
+    Ok(())
+}
+
+pub fn remove_package_from_archive(
+    cli_args: &ArgMatches,
+    package_file_path: &str,
+    project: Project,
+    target_releases: &[DistributionAlias],
+) -> Result<(), BellhopError> {
+    let path = PathBuf::from(package_file_path);
+    if !path.exists() {
+        return Err(BellhopError::PackageFileNotFound { path });
+    }
+
+    info!("Processing package file: {}", path.display());
+    let package_source = archive::process_package_file(&path)?;
+
+    let suffix = cli::suffix(cli_args);
+
+    match package_source {
+        PackageSource::SingleDeb(deb_path) => {
+            info!("Removing single .deb package");
+            let version = archive::extract_versions_from_debs(&[deb_path])?
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    BellhopError::ArchiveExtractionFailed(
+                        "Failed to extract version from .deb file".to_string(),
+                    )
+                })?;
+            remove_single_package(cli_args, &version, project, target_releases)?;
+        }
+        PackageSource::Archive {
+            deb_files,
+            _temp_dir,
+        } => {
+            info!("Removing {} packages from archive", deb_files.len());
+            let versions = archive::extract_versions_from_debs(&deb_files)?;
+            let unique_versions: HashSet<String> = versions.into_iter().collect();
+
+            info!(
+                "Found {} unique version(s) to remove",
+                unique_versions.len()
+            );
+            for version in &unique_versions {
+                debug!("Removing version: {version}");
+                remove_single_package_no_snapshot(&project, version, target_releases)?;
+            }
+            for rel in target_releases {
+                let repo_name = repo_name(&project, rel);
+                run_snapshot_drop(&project, rel, &suffix)?;
+                run_snapshot_create(&project, &repo_name, rel, &suffix)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_single_package(
+    cli_args: &ArgMatches,
+    version: &str,
+    project: Project,
+    target_releases: &[DistributionAlias],
+) -> Result<(), BellhopError> {
+    let suffix = cli::suffix(cli_args);
+
+    for rel in target_releases {
+        let repo_name = repo_name(&project, rel);
+        run_repo_remove(&project, version, &repo_name)?;
+        run_snapshot_drop(&project, rel, &suffix)?;
+        run_snapshot_create(&project, &repo_name, rel, &suffix)?;
+    }
+    Ok(())
+}
+
+fn remove_single_package_no_snapshot(
+    project: &Project,
+    version: &str,
+    target_releases: &[DistributionAlias],
+) -> Result<(), BellhopError> {
+    for rel in target_releases {
+        let repo_name = repo_name(project, rel);
+        run_repo_remove(project, version, &repo_name)?;
     }
     Ok(())
 }
@@ -249,7 +330,7 @@ fn run_repo_add(
 fn run_repo_remove(project: &Project, version: &str, repo_name: &str) -> Result<(), BellhopError> {
     let query = match project {
         Project::RabbitMQ => format!("rabbitmq-server (= {version})"),
-        Project::Erlang => format!("Name (% erlang-*), Version (= {version})"),
+        Project::Erlang => format!("Name (~ ^erlang), Version (= {version})"),
     };
 
     info!("Removing packages matching query '{query}' from repo '{repo_name}'");

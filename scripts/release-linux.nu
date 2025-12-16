@@ -26,28 +26,37 @@ build-with-cargo
 # Linux
 #
 
-if $os in ['ubuntu', 'ubuntu-latest', 'ubuntu-22.04', 'ubuntu-24.04', 'ubuntu-24.04-arm'] {
-  print "Building on Ubuntu..."
-  if $target == 'aarch64-unknown-linux-gnu' {
-    sudo apt-get install -y gcc-aarch64-linux-gnu
+if ($os | str starts-with 'ubuntu') {
+  print $"Building on Ubuntu \(($os)\)..."
+  if $target == 'x86_64-unknown-linux-gnu' {
     build-with-cargo
+  } else if $target == 'aarch64-unknown-linux-gnu' {
+    build-with-cargo
+  } else if $target == 'x86_64-unknown-linux-musl' {
+    sudo apt-get update
+    sudo apt-get install -y musl-tools
+    build-static-with-cargo
+  } else if $target == 'aarch64-unknown-linux-musl' {
+    sudo apt-get update
+    sudo apt-get install -y musl-tools
+    build-static-with-cargo
   } else if $target == 'armv7-unknown-linux-gnueabihf' {
     sudo apt-get install pkg-config gcc-arm-linux-gnueabihf -y
     build-with-cargo
   } else {
-    # musl-tools to fix 'Failed to find tool. Is `musl-gcc` installed?'
-    sudo apt-get install musl-tools -y
     build-with-cargo
   }
 }
 
-if $os in ['fedora', 'fedora-latest'] {
-  print "Building on Fedora..."
+if ($os | str starts-with 'fedora') {
+  print $"Building on Fedora \(($os)\)..."
   if $target == 'aarch64-unknown-linux-gnu' {
     sudo dnf install -y gcc-aarch64-linux-gnu
     build-with-cargo
   } else if $target == 'armv7-unknown-linux-gnueabihf' {
     sudo dnf install pkg-config gcc-arm-linux-gnueabihf -y
+    build-with-cargo
+  } else {
     build-with-cargo
   }
 }
@@ -61,6 +70,9 @@ cd $src
 
 print $"Release directory: ($release_dir)"
 ls $release_dir | print
+
+cp -r LICENSE* $release_dir
+cp -r README* $release_dir
 
 cd $release_dir
 
@@ -77,5 +89,10 @@ ls $release_dir | print
 echo $'artifact=($artifact_filename)' | save --append $env.GITHUB_OUTPUT
 
 def 'build-with-cargo' [] {
+  cargo rustc --bin $binary --target $target --release
+}
+
+def 'build-static-with-cargo' [] {
+  $env.RUSTFLAGS = '-C target-feature=+crt-static'
   cargo rustc --bin $binary --target $target --release
 }
