@@ -39,6 +39,7 @@ if ($os | str starts-with 'ubuntu') {
   } else if $target == 'aarch64-unknown-linux-musl' {
     sudo apt-get update
     sudo apt-get install -y musl-tools
+    $env.CC_aarch64_unknown_linux_musl = 'musl-gcc'
     build-static-with-cargo
   } else if $target == 'armv7-unknown-linux-gnueabihf' {
     sudo apt-get install pkg-config gcc-arm-linux-gnueabihf -y
