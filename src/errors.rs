@@ -55,6 +55,17 @@ pub enum BellhopError {
 
     #[error("Failed to extract archive: {0}")]
     ArchiveExtractionFailed(String),
+
+    #[error("Not a .deb file: {filename}")]
+    InvalidDebFilename { filename: String },
+
+    #[error("Malformed .deb filename (expected format: package_version_arch.deb): {filename}")]
+    MalformedDebFilename { filename: String },
+
+    #[error(
+        "aptly executable not found. Please install aptly first: https://www.aptly.info/download/"
+    )]
+    AptlyNotFound,
 }
 
 #[repr(i32)]
@@ -78,9 +89,12 @@ pub fn map_error_to_exit_code(error: &BellhopError) -> ExitCode {
         BellhopError::InvalidDistribution { .. } => ExitCode::DataErr,
         BellhopError::PackageFileNotFound { .. } => ExitCode::DataErr,
         BellhopError::NoDebFilesInArchive { .. } => ExitCode::DataErr,
+        BellhopError::InvalidDebFilename { .. } => ExitCode::DataErr,
+        BellhopError::MalformedDebFilename { .. } => ExitCode::DataErr,
         BellhopError::AptlyCommandFailed { .. } => ExitCode::Software,
         BellhopError::AptlyNonZeroExit { .. } => ExitCode::Software,
         BellhopError::IoError(_) => ExitCode::Software,
         BellhopError::ArchiveExtractionFailed(_) => ExitCode::Software,
+        BellhopError::AptlyNotFound => ExitCode::Software,
     }
 }

@@ -18,6 +18,8 @@ use crate::errors::BellhopError;
 use crate::{aptly, cli};
 
 pub fn add(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let package_file_path = cli_args
         .get_one::<String>("package_file_path")
         .ok_or_else(|| BellhopError::MissingArgument {
@@ -30,6 +32,8 @@ pub fn add(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> 
 }
 
 pub fn remove(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let target_releases = cli::distributions(cli_args, project)?;
 
     if let Some(version) = cli_args.get_one::<String>("version") {
@@ -44,12 +48,16 @@ pub fn remove(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopErro
 }
 
 pub fn publish(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let target_releases = cli::distributions(cli_args, project)?;
 
     aptly::publish(project, &target_releases)
 }
 
 pub fn list_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let target_releases = cli::distributions(cli_args, project)?;
     let suffix = cli::suffix(cli_args);
 
@@ -57,6 +65,8 @@ pub fn list_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), Bel
 }
 
 pub fn take_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let target_releases = cli::distributions(cli_args, project)?;
     let suffix = cli::suffix(cli_args);
 
@@ -64,6 +74,8 @@ pub fn take_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), Bel
 }
 
 pub fn delete_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {
+    aptly::check_aptly_available()?;
+
     let target_releases = cli::distributions(cli_args, project)?;
     let suffix = cli::suffix(cli_args);
 

@@ -98,7 +98,7 @@ fn snapshot_group() -> Command {
         .subcommands(snapshot_subcommands())
 }
 
-fn snapshot_subcommands() -> [Command; 3] {
+fn common_args() -> (Arg, Arg, Arg, ArgGroup) {
     let suffix_arg = Arg::new("suffix")
         .long("suffix")
         .value_name("NAME")
@@ -123,6 +123,17 @@ fn snapshot_subcommands() -> [Command; 3] {
         .args(["all", "distributions"])
         .required(true)
         .multiple(false);
+
+    (
+        suffix_arg,
+        all_distributions_arg,
+        distributions_arg,
+        distributions_group,
+    )
+}
+
+fn snapshot_subcommands() -> [Command; 3] {
+    let (suffix_arg, all_distributions_arg, distributions_arg, distributions_group) = common_args();
 
     let list_cmd = Command::new("list")
         .about("List snapshots")
@@ -148,30 +159,7 @@ fn snapshot_subcommands() -> [Command; 3] {
 }
 
 fn package_operation_subcommands() -> [Command; 3] {
-    let suffix_arg = Arg::new("suffix")
-        .long("suffix")
-        .value_name("NAME")
-        .help("Snapshot suffix name, e.g. a date in the %d-%b-%y format, such as 04-Aug-25")
-        .required(false);
-    let all_distributions_arg = Arg::new("all")
-        .short('a')
-        .long("all")
-        .action(ArgAction::SetTrue)
-        .conflicts_with("distributions")
-        .help("Add the package to all distributions");
-    let distributions_arg = Arg::new("distributions")
-        .short('d')
-        .long("distributions")
-        .value_name("DISTRIBUTIONS")
-        .conflicts_with("all")
-        .num_args(1..)
-        .value_delimiter(',')
-        .action(ArgAction::Append)
-        .help("A comma-separated list of distributions to add the package to");
-    let distributions_group = ArgGroup::new("distribution")
-        .args(["all", "distributions"])
-        .required(true)
-        .multiple(false);
+    let (suffix_arg, all_distributions_arg, distributions_arg, distributions_group) = common_args();
 
     let add_cmd = Command::new("add")
         .about("Add a package to one or multiple distributions")

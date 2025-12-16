@@ -43,10 +43,7 @@ fn test_extract_version_complex_package_name() {
 fn test_extract_version_various_architectures() {
     for arch in ["amd64", "arm64", "armel", "armhf", "i386", "all"] {
         let filename = format!("package_1.2.3-1_{arch}.deb");
-        assert_eq!(
-            extract_version_from_filename(&filename).unwrap(),
-            "1.2.3-1"
-        );
+        assert_eq!(extract_version_from_filename(&filename).unwrap(), "1.2.3-1");
     }
 }
 
@@ -54,20 +51,19 @@ fn test_extract_version_various_architectures() {
 fn test_extract_version_not_deb_file() {
     let result = extract_version_from_filename("package_1.2.3-1_amd64.rpm");
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Not a .deb file"));
+    assert!(result.unwrap_err().to_string().contains("Not a .deb file"));
 }
 
 #[test]
 fn test_extract_version_invalid_format_too_few_parts() {
     let result = extract_version_from_filename("invalid.deb");
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Invalid .deb filename format"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Malformed .deb filename")
+    );
 }
 
 #[test]

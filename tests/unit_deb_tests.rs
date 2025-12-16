@@ -137,10 +137,7 @@ fn test_distribution_alias_from_str() {
 
 #[test]
 fn test_distribution_alias_family() {
-    assert_eq!(
-        DistributionAlias::Bookworm.family(),
-        DebianFamily::Debian
-    );
+    assert_eq!(DistributionAlias::Bookworm.family(), DebianFamily::Debian);
     assert_eq!(DistributionAlias::Jammy.family(), DebianFamily::Ubuntu);
 }
 

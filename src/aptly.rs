@@ -22,9 +22,28 @@ use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::OnceLock;
 
 const ALL_ARCHITECTURES_ARG: &str = "-architectures=amd64,arm64,armel,armhf,i386";
 const GPG_KEY_ID_ARG: &str = "-gpg-key=0A9AF2115F4687BD29803A206B73A36E6026DFCA";
+
+static APTLY_AVAILABLE: OnceLock<bool> = OnceLock::new();
+
+pub fn check_aptly_available() -> Result<(), BellhopError> {
+    let available = APTLY_AVAILABLE.get_or_init(|| {
+        Command::new("aptly")
+            .arg("version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    });
+
+    if *available {
+        Ok(())
+    } else {
+        Err(BellhopError::AptlyNotFound)
+    }
+}
 
 fn aptly_command() -> Command {
     let mut cmd = Command::new("aptly");
@@ -77,14 +96,23 @@ pub fn add_package(
                 debug!("Processing: {}", deb_path.display());
                 add_single_package_no_snapshot(&project, deb_path, target_releases)?;
             }
-            for rel in target_releases {
-                let repo_name = repo_name(&project, rel);
-                run_snapshot_drop(&project, rel, &suffix)?;
-                run_snapshot_create(&project, &repo_name, rel, &suffix)?;
-            }
+            update_snapshots_for_releases(&project, target_releases, &suffix)?;
         }
     }
 
+    Ok(())
+}
+
+fn update_snapshots_for_releases(
+    project: &Project,
+    target_releases: &[DistributionAlias],
+    suffix: &str,
+) -> Result<(), BellhopError> {
+    for rel in target_releases {
+        let repo_name = repo_name(project, rel);
+        run_snapshot_drop(project, rel, suffix)?;
+        run_snapshot_create(project, &repo_name, rel, suffix)?;
+    }
     Ok(())
 }
 
@@ -99,10 +127,8 @@ fn add_single_package(
     for rel in target_releases {
         let repo_name = repo_name(&project, rel);
         run_repo_add(&project, deb_path, &repo_name, rel)?;
-        run_snapshot_drop(&project, rel, &suffix)?;
-        run_snapshot_create(&project, &repo_name, rel, &suffix)?;
     }
-    Ok(())
+    update_snapshots_for_releases(&project, target_releases, &suffix)
 }
 
 fn add_single_package_no_snapshot(
@@ -127,13 +153,9 @@ pub fn remove_package(
 
     for rel in target_releases {
         let repo_name = repo_name(&project, rel);
-
         run_repo_remove(&project, version, &repo_name)?;
-
-        run_snapshot_drop(&project, rel, &suffix)?;
-        run_snapshot_create(&project, &repo_name, rel, &suffix)?;
     }
-    Ok(())
+    update_snapshots_for_releases(&project, target_releases, &suffix)
 }
 
 pub fn remove_package_from_archive(
@@ -155,14 +177,7 @@ pub fn remove_package_from_archive(
     match package_source {
         PackageSource::SingleDeb(deb_path) => {
             info!("Removing single .deb package");
-            let version = archive::extract_versions_from_debs(&[deb_path])?
-                .into_iter()
-                .next()
-                .ok_or_else(|| {
-                    BellhopError::ArchiveExtractionFailed(
-                        "Failed to extract version from .deb file".to_string(),
-                    )
-                })?;
+            let version = archive::extract_version_from_deb(&deb_path)?;
             remove_single_package(cli_args, &version, project, target_releases)?;
         }
         PackageSource::Archive {
@@ -181,11 +196,7 @@ pub fn remove_package_from_archive(
                 debug!("Removing version: {version}");
                 remove_single_package_no_snapshot(&project, version, target_releases)?;
             }
-            for rel in target_releases {
-                let repo_name = repo_name(&project, rel);
-                run_snapshot_drop(&project, rel, &suffix)?;
-                run_snapshot_create(&project, &repo_name, rel, &suffix)?;
-            }
+            update_snapshots_for_releases(&project, target_releases, &suffix)?;
         }
     }
 
@@ -283,7 +294,11 @@ fn snapshot_name(project: &Project, rel: &DistributionAlias) -> String {
     format!("snap-{}-{}-{}", prefix, rel.release_name(), date)
 }
 
-pub fn snapshot_name_with_suffix(project: &Project, rel: &DistributionAlias, suffix: &str) -> String {
+pub fn snapshot_name_with_suffix(
+    project: &Project,
+    rel: &DistributionAlias,
+    suffix: &str,
+) -> String {
     let prefix = project_prefix(project);
 
     format!("snap-{}-{}-{}", prefix, rel.release_name(), suffix)

@@ -254,6 +254,19 @@ fn find_deb_files(root: &Path) -> Result<Vec<PathBuf>, BellhopError> {
     Ok(deb_files)
 }
 
+pub fn extract_version_from_deb(deb_path: &Path) -> Result<String, BellhopError> {
+    let file_name = deb_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| {
+            BellhopError::ArchiveExtractionFailed(format!(
+                "Invalid .deb filename: {}",
+                deb_path.display()
+            ))
+        })?;
+    extract_version_from_filename(file_name)
+}
+
 pub fn extract_versions_from_debs(deb_files: &[PathBuf]) -> Result<Vec<String>, BellhopError> {
     deb_files
         .iter()
@@ -274,17 +287,17 @@ pub fn extract_versions_from_debs(deb_files: &[PathBuf]) -> Result<Vec<String>, 
 
 pub fn extract_version_from_filename(filename: &str) -> Result<String, BellhopError> {
     if !filename.ends_with(".deb") {
-        return Err(BellhopError::ArchiveExtractionFailed(format!(
-            "Not a .deb file: {filename}"
-        )));
+        return Err(BellhopError::InvalidDebFilename {
+            filename: filename.to_string(),
+        });
     }
 
     let parts: Vec<&str> = filename.trim_end_matches(".deb").rsplitn(3, '_').collect();
 
     if parts.len() < 3 {
-        return Err(BellhopError::ArchiveExtractionFailed(format!(
-            "Invalid .deb filename format: {filename}"
-        )));
+        return Err(BellhopError::MalformedDebFilename {
+            filename: filename.to_string(),
+        });
     }
 
     Ok(parts[1].to_string())
