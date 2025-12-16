@@ -33,7 +33,6 @@ pub enum BellhopError {
     #[error("Required argument '{argument}' is missing")]
     MissingArgument { argument: String },
 
-    /// Reserved for future use
     #[error("aptly command failed: {command}\nStderr: {stderr}")]
     #[allow(dead_code)]
     AptlyCommandFailed { command: String, stderr: String },
@@ -58,7 +57,6 @@ pub enum BellhopError {
     ArchiveExtractionFailed(String),
 }
 
-// Exit codes following sysexits convention (like rabbitmqadmin-ng)
 #[repr(i32)]
 pub enum ExitCode {
     Ok = 0,

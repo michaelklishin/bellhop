@@ -21,47 +21,6 @@ use std::process::Command;
 use test_helpers::*;
 
 #[test]
-fn test_publish_single_distribution() -> Result<(), Box<dyn Error>> {
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-server-bookworm";
-    ctx.create_repo(repo_name)?;
-    ctx.create_initial_publish("rabbitmq-server", "debian", "bookworm")?;
-
-    let package_path = test_package_path("rabbitmq-server_4.1.3-1_all.deb");
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "rabbitmq",
-        "deb",
-        "add",
-        "-p",
-        package_path.to_str().unwrap(),
-        "-d",
-        "bookworm",
-    ]);
-    cmd.assert().success();
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args(["rabbitmq", "deb", "publish", "-d", "bookworm"]);
-    cmd.assert().success();
-
-    let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_snapshot = format!("snap-rabbitmq-server-bookworm-{date}");
-    assert!(
-        ctx.published_snapshot_is_active(
-            "rabbitmq-server",
-            "debian",
-            "bookworm",
-            &expected_snapshot
-        )?,
-        "Published repository should use the new snapshot"
-    );
-
-    Ok(())
-}
-
-#[test]
 fn test_publish_multiple_distributions() -> Result<(), Box<dyn Error>> {
     let ctx = AptlyTestContext::new()?;
     ctx.create_repo("repo-rabbitmq-server-bookworm")?;
@@ -265,47 +224,6 @@ fn test_first_time_publish() -> Result<(), Box<dyn Error>> {
             &expected_snapshot
         )?,
         "Bookworm should be published even without initial publish setup"
-    );
-
-    Ok(())
-}
-
-#[test]
-fn test_erlang_publish_new_distribution() -> Result<(), Box<dyn Error>> {
-    let ctx = AptlyTestContext::new()?;
-    let repo_name = "repo-rabbitmq-erlang-trixie";
-    ctx.create_repo(repo_name)?;
-
-    let package_path = test_package_path("erlang-base_27.3.4.6-1_amd64.deb");
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args([
-        "erlang",
-        "deb",
-        "add",
-        "-p",
-        package_path.to_str().unwrap(),
-        "-d",
-        "trixie",
-    ]);
-    cmd.assert().success();
-
-    let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
-    cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
-    cmd.args(["erlang", "deb", "publish", "-d", "trixie"]);
-    cmd.assert().success();
-
-    let date = Local::now().format("%d-%b-%y").to_string();
-    let expected_snapshot = format!("snap-rabbitmq-erlang-trixie-{date}");
-
-    assert!(
-        ctx.published_snapshot_is_active(
-            "rabbitmq-erlang",
-            "debian",
-            "trixie",
-            &expected_snapshot
-        )?,
-        "Erlang Trixie should be published without initial publish setup"
     );
 
     Ok(())

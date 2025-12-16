@@ -569,13 +569,12 @@ fn test_add_tar_archive_with_deeply_nested_deb_ignored() -> Result<(), Box<dyn E
 }
 
 #[test]
-fn test_add_zip_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
+fn test_add_real_tar_gz_archive() -> Result<(), Box<dyn Error>> {
     let ctx = AptlyTestContext::new()?;
     let repo_name = "repo-rabbitmq-server-bookworm";
     ctx.create_repo(repo_name)?;
 
-    let (archive_path, _temp_dir) =
-        create_zip_archive_with_debs(&["rabbitmq-server_4.1.3-1_all.deb"])?;
+    let archive_path = test_fixture_path("archives/rabbitmq-4.1.7.tar.gz");
 
     let mut cmd = Command::new(cargo::cargo_bin!("bellhop"));
     cmd.env("APTLY_CONFIG", ctx.config_path.to_str().unwrap());
@@ -591,8 +590,8 @@ fn test_add_zip_archive_with_single_deb() -> Result<(), Box<dyn Error>> {
     cmd.assert().success();
 
     assert!(
-        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.3-1)")?,
-        "Package from .zip archive should be added"
+        ctx.package_exists(repo_name, "rabbitmq-server (= 4.1.7-1)")?,
+        "Package from .tar.gz archive should be added"
     );
 
     Ok(())

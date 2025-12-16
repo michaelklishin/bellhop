@@ -265,11 +265,7 @@ pub fn delete_snapshots(
     Ok(())
 }
 
-//
-// Implementation
-//
-
-fn repo_name(project: &Project, rel: &DistributionAlias) -> String {
+pub fn repo_name(project: &Project, rel: &DistributionAlias) -> String {
     match project {
         Project::RabbitMQ => {
             format!("repo-rabbitmq-server-{rel}")
@@ -287,18 +283,18 @@ fn snapshot_name(project: &Project, rel: &DistributionAlias) -> String {
     format!("snap-{}-{}-{}", prefix, rel.release_name(), date)
 }
 
-fn snapshot_name_with_suffix(project: &Project, rel: &DistributionAlias, suffix: &str) -> String {
+pub fn snapshot_name_with_suffix(project: &Project, rel: &DistributionAlias, suffix: &str) -> String {
     let prefix = project_prefix(project);
 
     format!("snap-{}-{}-{}", prefix, rel.release_name(), suffix)
 }
 
-fn rel_path_with_prefix(project: &Project, rel: &DistributionAlias) -> String {
+pub fn rel_path_with_prefix(project: &Project, rel: &DistributionAlias) -> String {
     let prefix = project_prefix(project);
     format!("{}/{}/{}", prefix, rel.family_name(), rel.release_name())
 }
 
-fn project_prefix(project: &Project) -> &'static str {
+pub fn project_prefix(project: &Project) -> &'static str {
     match project {
         Project::RabbitMQ => "rabbitmq-server",
         Project::Erlang => "rabbitmq-erlang",
