@@ -44,27 +44,6 @@ fn create_tar_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box
     Ok((archive_path, temp_dir))
 }
 
-fn create_zip_archive_with_debs(debs: &[&str]) -> Result<(PathBuf, TempDir), Box<dyn Error>> {
-    let temp_dir = TempDir::new()?;
-    let archive_path = temp_dir.path().join("packages.zip");
-    let zip_file = File::create(&archive_path)?;
-    let mut zip = ZipWriter::new(zip_file);
-    let options = SimpleFileOptions::default();
-
-    for deb in debs {
-        let deb_path = test_package_path(deb);
-        if deb_path.exists() {
-            let mut file = File::open(&deb_path)?;
-            zip.start_file(*deb, options)?;
-            std::io::copy(&mut file, &mut zip)?;
-        }
-    }
-
-    zip.finish()?;
-
-    Ok((archive_path, temp_dir))
-}
-
 fn create_empty_zip_archive() -> Result<(PathBuf, TempDir), Box<dyn Error>> {
     let temp_dir = TempDir::new()?;
     let archive_path = temp_dir.path().join("empty.zip");
