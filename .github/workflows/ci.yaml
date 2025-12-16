@@ -76,5 +76,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y aptly
 
+      - name: Install and configure GPG
+        run: |
+          sudo apt-get install -y gnupg
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          gpg --batch --gen-key <<EOF
+          %no-protection
+          Key-Type: RSA
+          Key-Length: 2048
+          Name-Real: Test Key
+          Name-Email: test@example.com
+          Expire-Date: 0
+          EOF
+
       - name: Run tests
         run: RUST_BACKTRACE=1 cargo nextest run --profile ci --workspace --no-fail-fast --all-features
