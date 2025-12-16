@@ -1,5 +1,9 @@
 # Change Log
 
+## 1.3.0 (in development)
+
+No changes yet.
+
 ## 1.2.0 (Dec 16, 2025)
 
 ### Enhancements
