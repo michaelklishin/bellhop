@@ -27,6 +27,14 @@ use std::sync::OnceLock;
 const ALL_ARCHITECTURES_ARG: &str = "-architectures=amd64,arm64,armel,armhf,i386";
 const GPG_KEY_ID_ARG: &str = "-gpg-key=0A9AF2115F4687BD29803A206B73A36E6026DFCA";
 
+fn gpg_key_arg() -> String {
+    if let Ok(key_id) = env::var("BELLHOP_GPG_KEY") {
+        format!("-gpg-key={key_id}")
+    } else {
+        GPG_KEY_ID_ARG.to_string()
+    }
+}
+
 static APTLY_AVAILABLE: OnceLock<bool> = OnceLock::new();
 
 pub fn check_aptly_available() -> Result<(), BellhopError> {
@@ -465,11 +473,13 @@ fn run_snapshot_switch(
 
     info!("Publishing snapshot '{snapshot_name}' to '{rel_path}'");
 
+    let gpg_key = gpg_key_arg();
+
     if is_repo_published(published_repos, &rel_path, rel.release_name()) {
         let output = aptly_command()
             .arg("publish")
             .arg("switch")
-            .arg(GPG_KEY_ID_ARG)
+            .arg(&gpg_key)
             .arg(rel.release_name())
             .arg(&rel_path)
             .arg(&snapshot_name)
@@ -479,7 +489,7 @@ fn run_snapshot_switch(
             output,
             format!(
                 "aptly publish switch {} {} {} {}",
-                GPG_KEY_ID_ARG,
+                gpg_key,
                 rel.release_name(),
                 rel_path,
                 snapshot_name
@@ -493,7 +503,7 @@ fn run_snapshot_switch(
             .arg("snapshot")
             .arg("-distribution")
             .arg(rel.release_name())
-            .arg(GPG_KEY_ID_ARG)
+            .arg(&gpg_key)
             .arg(&snapshot_name)
             .arg(&rel_path)
             .output()?;
@@ -503,7 +513,7 @@ fn run_snapshot_switch(
             format!(
                 "aptly publish snapshot -distribution {} {} {} {}",
                 rel.release_name(),
-                GPG_KEY_ID_ARG,
+                gpg_key,
                 snapshot_name,
                 rel_path
             ),

@@ -85,10 +85,15 @@ jobs:
           %no-protection
           Key-Type: RSA
           Key-Length: 2048
-          Name-Real: Test Key
-          Name-Email: test@example.com
+          Name-Real: Bellhop Test Key
+          Name-Email: test@bellhop.example.com
           Expire-Date: 0
           EOF
+
+          # Extract the key fingerprint and export it for tests
+          GPG_KEY_ID=$(gpg --list-keys --with-colons | grep '^fpr' | head -n1 | cut -d: -f10)
+          echo "BELLHOP_GPG_KEY=$GPG_KEY_ID" >> $GITHUB_ENV
+          echo "Generated test GPG key: $GPG_KEY_ID"
 
       - name: Run tests
         run: RUST_BACKTRACE=1 cargo nextest run --profile ci --workspace --no-fail-fast --all-features
