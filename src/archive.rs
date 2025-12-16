@@ -35,22 +35,24 @@ pub fn process_package_file(package_file_path: &Path) -> Result<PackageSource, B
         .and_then(|n| n.to_str())
         .unwrap_or("");
 
-    if file_name.ends_with(".deb") {
+    let file_name_lower = file_name.to_lowercase();
+
+    if file_name_lower.ends_with(".deb") {
         debug!("Detected .deb file: {}", package_file_path.display());
         return Ok(PackageSource::SingleDeb(package_file_path.to_path_buf()));
     }
 
-    if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") {
+    if file_name_lower.ends_with(".tar.gz") || file_name_lower.ends_with(".tgz") {
         info!("Detected .tar.gz archive: {}", package_file_path.display());
         return extract_tar_gz(package_file_path);
     }
 
-    if file_name.ends_with(".tar") {
+    if file_name_lower.ends_with(".tar") {
         info!("Detected .tar archive: {}", package_file_path.display());
         return extract_tar(package_file_path);
     }
 
-    if file_name.ends_with(".zip") {
+    if file_name_lower.ends_with(".zip") {
         info!("Detected .zip archive: {}", package_file_path.display());
         return extract_zip(package_file_path);
     }
@@ -170,13 +172,14 @@ fn extract_nested_tar_archives(dir: &Path) -> Result<(), BellhopError> {
         info!("Extracting nested archive: {}", tar_path.display());
 
         let file_name = tar_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let file_name_lower = file_name.to_lowercase();
 
-        if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") {
+        if file_name_lower.ends_with(".tar.gz") || file_name_lower.ends_with(".tgz") {
             let file = File::open(&tar_path)?;
             let decoder = GzDecoder::new(file);
             let mut archive = Archive::new(decoder);
             extract_tar_to_same_dir(&mut archive, &tar_path)?;
-        } else if file_name.ends_with(".tar") {
+        } else if file_name_lower.ends_with(".tar") {
             let file = File::open(&tar_path)?;
             let mut archive = Archive::new(file);
             extract_tar_to_same_dir(&mut archive, &tar_path)?;
@@ -217,7 +220,8 @@ fn find_tar_archives(dir: &Path) -> Result<Vec<PathBuf>, BellhopError> {
 
         if file_type.is_file()
             && path.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
-                n.ends_with(".tar.gz") || n.ends_with(".tgz") || n.ends_with(".tar")
+                let lower = n.to_lowercase();
+                lower.ends_with(".tar.gz") || lower.ends_with(".tgz") || lower.ends_with(".tar")
             })
         {
             tar_files.push(path);
@@ -235,6 +239,12 @@ fn find_deb_files(root: &Path) -> Result<Vec<PathBuf>, BellhopError> {
 
     while let Some((dir, depth)) = to_visit.pop() {
         if depth > MAX_DEPTH {
+            debug!(
+                "Skipping directory at depth {} (max: {}): {}",
+                depth,
+                MAX_DEPTH,
+                dir.display()
+            );
             continue;
         }
 
@@ -300,5 +310,12 @@ pub fn extract_version_from_filename(filename: &str) -> Result<String, BellhopEr
         });
     }
 
-    Ok(parts[1].to_string())
+    let version = parts[1];
+    if version.is_empty() {
+        return Err(BellhopError::MalformedDebFilename {
+            filename: filename.to_string(),
+        });
+    }
+
+    Ok(version.to_string())
 }

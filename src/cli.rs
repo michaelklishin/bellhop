@@ -22,7 +22,7 @@ use clap::{Arg, ArgAction, ArgGroup, ArgMatches, Command};
 pub fn parser() -> Command {
     Command::new("bellhop")
         .version(clap::crate_version!())
-        .about("Puts your .deb and .rpm packages into the right places")
+        .about("Puts input .deb and .rpm packages into the right places")
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(rabbitmq_group())
@@ -98,116 +98,109 @@ fn snapshot_group() -> Command {
         .subcommands(snapshot_subcommands())
 }
 
-fn common_args() -> (Arg, Arg, Arg, ArgGroup) {
-    let suffix_arg = Arg::new("suffix")
-        .long("suffix")
-        .value_name("NAME")
-        .help("Snapshot suffix name, e.g. a date in the %d-%b-%y format, such as 04-Aug-25")
-        .required(false);
-    let all_distributions_arg = Arg::new("all")
-        .short('a')
-        .long("all")
-        .action(ArgAction::SetTrue)
-        .conflicts_with("distributions")
-        .help("Add the package to all distributions");
-    let distributions_arg = Arg::new("distributions")
-        .short('d')
-        .long("distributions")
-        .value_name("DISTRIBUTIONS")
-        .conflicts_with("all")
-        .num_args(1..)
-        .value_delimiter(',')
-        .action(ArgAction::Append)
-        .help("A comma-separated list of distributions to add the package to");
-    let distributions_group = ArgGroup::new("distribution")
-        .args(["all", "distributions"])
-        .required(true)
-        .multiple(false);
+fn add_distribution_args(cmd: Command, include_suffix: bool) -> Command {
+    let mut cmd = cmd
+        .arg(
+            Arg::new("all")
+                .short('a')
+                .long("all")
+                .action(ArgAction::SetTrue)
+                .conflicts_with("distributions")
+                .help("Add the package to all distributions"),
+        )
+        .arg(
+            Arg::new("distributions")
+                .short('d')
+                .long("distributions")
+                .value_name("DISTRIBUTIONS")
+                .conflicts_with("all")
+                .num_args(1..)
+                .value_delimiter(',')
+                .action(ArgAction::Append)
+                .help("A comma-separated list of distributions to add the package to"),
+        )
+        .group(
+            ArgGroup::new("distribution")
+                .args(["all", "distributions"])
+                .required(true)
+                .multiple(false),
+        );
 
-    (
-        suffix_arg,
-        all_distributions_arg,
-        distributions_arg,
-        distributions_group,
-    )
+    if include_suffix {
+        cmd = cmd.arg(
+            Arg::new("suffix")
+                .long("suffix")
+                .value_name("NAME")
+                .help("Snapshot suffix name, e.g. a date in the %d-%b-%y format, such as 04-Aug-25")
+                .required(false),
+        );
+    }
+
+    cmd
 }
 
 fn snapshot_subcommands() -> [Command; 3] {
-    let (suffix_arg, all_distributions_arg, distributions_arg, distributions_group) = common_args();
-
-    let list_cmd = Command::new("list")
-        .about("List snapshots")
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .arg(suffix_arg.clone())
-        .group(distributions_group.clone());
-    let create_cmd = Command::new("take")
-        .about("Take a snapshot")
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .arg(suffix_arg.clone())
-        .group(distributions_group.clone());
-    let delete_cmd = Command::new("delete")
-        .about("Delete a snapshot")
-        .visible_alias("remove")
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .arg(suffix_arg.clone())
-        .group(distributions_group.clone());
+    let list_cmd = add_distribution_args(Command::new("list").about("List snapshots"), true);
+    let create_cmd = add_distribution_args(Command::new("take").about("Take a snapshot"), true);
+    let delete_cmd = add_distribution_args(
+        Command::new("delete")
+            .about("Delete a snapshot")
+            .visible_alias("remove"),
+        true,
+    );
 
     [list_cmd, create_cmd, delete_cmd]
 }
 
 fn package_operation_subcommands() -> [Command; 3] {
-    let (suffix_arg, all_distributions_arg, distributions_arg, distributions_group) = common_args();
+    let add_cmd = add_distribution_args(
+        Command::new("add")
+            .about("Add a package to one or multiple distributions")
+            .arg(
+                Arg::new("package_file_path")
+                    .short('p')
+                    .long("package-file-path")
+                    .value_name("PATH")
+                    .help("Binary package file path")
+                    .required(true),
+            ),
+        true,
+    );
 
-    let add_cmd = Command::new("add")
-        .about("Add a package to one or multiple distributions")
-        .arg(
-            Arg::new("package_file_path")
-                .short('p')
-                .long("package-file-path")
-                .value_name("PATH")
-                .help("Binary package file path")
-                .required(true),
-        )
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .arg(suffix_arg.clone())
-        .group(distributions_group.clone());
+    let remove_cmd = add_distribution_args(
+        Command::new("remove")
+            .about("Remove a .deb package from one or multiple distributions")
+            .arg(
+                Arg::new("version")
+                    .short('v')
+                    .long("version")
+                    .value_name("VERSION")
+                    .conflicts_with("package_file_path")
+                    .help("Version of the package to remove"),
+            )
+            .arg(
+                Arg::new("package_file_path")
+                    .short('p')
+                    .long("package-file-path")
+                    .value_name("PATH")
+                    .conflicts_with("version")
+                    .help("Package file path (.deb, .zip, .tar.gz)"),
+            )
+            .group(
+                ArgGroup::new("input")
+                    .args(["version", "package_file_path"])
+                    .required(true)
+                    .multiple(false),
+            ),
+        true,
+    );
 
-    let version_arg = Arg::new("version")
-        .short('v')
-        .long("version")
-        .value_name("VERSION")
-        .conflicts_with("package_file_path")
-        .help("Version of the package to remove");
-    let package_file_path_arg = Arg::new("package_file_path")
-        .short('p')
-        .long("package-file-path")
-        .value_name("PATH")
-        .conflicts_with("version")
-        .help("Package file path (.deb, .zip, .tar.gz)");
-    let version_or_path_group = ArgGroup::new("input")
-        .args(["version", "package_file_path"])
-        .required(true)
-        .multiple(false);
-
-    let remove_cmd = Command::new("remove")
-        .about("Remove a .deb package from one or multiple distributions")
-        .arg(version_arg)
-        .arg(package_file_path_arg)
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .arg(suffix_arg.clone())
-        .group(distributions_group.clone())
-        .group(version_or_path_group);
-
-    let publish_cmd = Command::new("publish")
-        .about("Regenerates all repositories from recent snapshots (created by the 'add' command)")
-        .arg(all_distributions_arg.clone())
-        .arg(distributions_arg.clone())
-        .group(distributions_group.clone());
+    let publish_cmd = add_distribution_args(
+        Command::new("publish").about(
+            "Regenerates all repositories from recent snapshots (created by the 'add' command)",
+        ),
+        false,
+    );
 
     [add_cmd, remove_cmd, publish_cmd]
 }

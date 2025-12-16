@@ -212,13 +212,9 @@ impl DistributionAlias {
     }
 
     pub fn family_name(&self) -> &'static str {
-        match self {
-            DistributionAlias::Noble | DistributionAlias::Jammy | DistributionAlias::Focal => {
-                "ubuntu"
-            }
-            DistributionAlias::Trixie
-            | DistributionAlias::Bookworm
-            | DistributionAlias::Bullseye => "debian",
+        match self.family() {
+            DebianFamily::Debian => "debian",
+            DebianFamily::Ubuntu => "ubuntu",
         }
     }
 

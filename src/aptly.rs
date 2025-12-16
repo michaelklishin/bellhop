@@ -236,8 +236,9 @@ pub fn publish(
     project: Project,
     target_releases: &[DistributionAlias],
 ) -> Result<(), BellhopError> {
+    let published_repos = list_published_repos()?;
     for rel in target_releases {
-        run_snapshot_switch(&project, rel)?;
+        run_snapshot_switch(&project, rel, &published_repos)?;
     }
     Ok(())
 }
@@ -441,13 +442,30 @@ fn run_snapshot_drop(
     Ok(())
 }
 
-fn run_snapshot_switch(project: &Project, rel: &DistributionAlias) -> Result<(), BellhopError> {
+fn list_published_repos() -> Result<HashSet<String>, BellhopError> {
+    let output = aptly_command().arg("publish").arg("list").output()?;
+    let output = check_aptly_output(output, "aptly publish list")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout.lines().map(|l| l.to_string()).collect())
+}
+
+fn is_repo_published(published_repos: &HashSet<String>, prefix: &str, distribution: &str) -> bool {
+    let search_pattern = format!("{prefix}/{distribution}");
+    published_repos.iter().any(|p| p.contains(&search_pattern))
+}
+
+fn run_snapshot_switch(
+    project: &Project,
+    rel: &DistributionAlias,
+    published_repos: &HashSet<String>,
+) -> Result<(), BellhopError> {
     let snapshot_name = snapshot_name(project, rel);
     let rel_path = rel_path_with_prefix(project, rel);
 
     info!("Publishing snapshot '{snapshot_name}' to '{rel_path}'");
 
-    if publication_exists(&rel_path, rel.release_name())? {
+    if is_repo_published(published_repos, &rel_path, rel.release_name()) {
         let output = aptly_command()
             .arg("publish")
             .arg("switch")
@@ -493,13 +511,4 @@ fn run_snapshot_switch(project: &Project, rel: &DistributionAlias) -> Result<(),
     }
 
     Ok(())
-}
-
-fn publication_exists(prefix: &str, distribution: &str) -> Result<bool, BellhopError> {
-    let output = aptly_command().arg("publish").arg("list").output()?;
-    let output = check_aptly_output(output, "aptly publish list")?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let search_pattern = format!("{prefix}/{distribution}");
-    Ok(stdout.contains(&search_pattern))
 }
