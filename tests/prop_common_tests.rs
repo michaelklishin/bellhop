@@ -16,7 +16,11 @@ use bellhop::common::Project;
 use proptest::prelude::*;
 
 fn project_strategy() -> impl Strategy<Value = Project> {
-    prop_oneof![Just(Project::RabbitMQ), Just(Project::Erlang),]
+    prop_oneof![
+        Just(Project::RabbitMQ),
+        Just(Project::Erlang),
+        Just(Project::CliTools),
+    ]
 }
 
 proptest! {
@@ -24,6 +28,6 @@ proptest! {
     fn project_display_never_empty(project in project_strategy()) {
         let s = project.to_string();
         prop_assert!(!s.is_empty());
-        prop_assert!(s.chars().all(|c| c.is_ascii_lowercase()));
+        prop_assert!(s.chars().all(|c| c.is_ascii_lowercase() || c == '-'));
     }
 }

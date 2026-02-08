@@ -88,9 +88,75 @@ fn test_rel_path_with_prefix_ubuntu() {
 }
 
 #[test]
+fn test_repo_name_cli_tools() {
+    assert_eq!(
+        bellhop::aptly::repo_name(&Project::CliTools, &DistributionAlias::Bookworm),
+        "repo-rabbitmq-cli-bookworm"
+    );
+    assert_eq!(
+        bellhop::aptly::repo_name(&Project::CliTools, &DistributionAlias::Noble),
+        "repo-rabbitmq-cli-noble"
+    );
+}
+
+#[test]
+fn test_project_prefix_cli_tools() {
+    assert_eq!(
+        bellhop::aptly::project_prefix(&Project::CliTools),
+        "rabbitmq-cli"
+    );
+}
+
+#[test]
+fn test_snapshot_name_with_suffix_cli_tools() {
+    let name = bellhop::aptly::snapshot_name_with_suffix(
+        &Project::CliTools,
+        &DistributionAlias::Jammy,
+        "16-Dec-25",
+    );
+    assert_eq!(name, "snap-rabbitmq-cli-jammy-16-Dec-25");
+}
+
+#[test]
+fn test_rel_path_with_prefix_cli_tools() {
+    assert_eq!(
+        bellhop::aptly::rel_path_with_prefix(&Project::CliTools, &DistributionAlias::Noble),
+        "rabbitmq-cli/ubuntu/noble"
+    );
+    assert_eq!(
+        bellhop::aptly::rel_path_with_prefix(&Project::CliTools, &DistributionAlias::Trixie),
+        "rabbitmq-cli/debian/trixie"
+    );
+}
+
+#[test]
+fn test_expected_repos_count() {
+    let repos = bellhop::aptly::expected_repos();
+    // 6 RabbitMQ + 4 Erlang + 6 CliTools = 16
+    assert_eq!(repos.len(), 16);
+}
+
+#[test]
+fn test_expected_repos_includes_all_projects() {
+    let repos = bellhop::aptly::expected_repos();
+    let rabbitmq_count = repos
+        .iter()
+        .filter(|(p, _)| *p == Project::RabbitMQ)
+        .count();
+    let erlang_count = repos.iter().filter(|(p, _)| *p == Project::Erlang).count();
+    let cli_count = repos
+        .iter()
+        .filter(|(p, _)| *p == Project::CliTools)
+        .count();
+    assert_eq!(rabbitmq_count, 6);
+    assert_eq!(erlang_count, 4);
+    assert_eq!(cli_count, 6);
+}
+
+#[test]
 fn test_all_distributions_have_valid_repo_names() {
     for dist in DistributionAlias::all() {
-        for project in [Project::RabbitMQ, Project::Erlang] {
+        for project in [Project::RabbitMQ, Project::Erlang, Project::CliTools] {
             let repo = bellhop::aptly::repo_name(&project, dist);
             assert!(repo.starts_with("repo-"));
             assert!(!repo.contains('/'));

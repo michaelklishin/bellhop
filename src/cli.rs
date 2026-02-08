@@ -27,6 +27,9 @@ pub fn parser() -> Command {
         .arg_required_else_help(true)
         .subcommand(rabbitmq_group())
         .subcommand(erlang_group())
+        .subcommand(cli_tools_group())
+        .subcommand(repositories_group())
+        .subcommand(watch_command())
 }
 
 pub fn distributions(
@@ -36,7 +39,7 @@ pub fn distributions(
     if cli_args.get_flag("all") {
         match project {
             Project::Erlang => Ok(DistributionAlias::erlang_supported().to_vec()),
-            Project::RabbitMQ => Ok(DistributionAlias::all().to_vec()),
+            Project::RabbitMQ | Project::CliTools => Ok(DistributionAlias::all().to_vec()),
         }
     } else {
         cli_args
@@ -51,6 +54,12 @@ pub fn distributions(
             })
             .collect()
     }
+}
+
+pub fn distributions_for_all_projects(
+    cli_args: &ArgMatches,
+) -> Result<Vec<DistributionAlias>, BellhopError> {
+    distributions(cli_args, Project::RabbitMQ)
 }
 
 pub fn suffix(cli_args: &ArgMatches) -> String {
@@ -70,6 +79,32 @@ fn deb_group() -> Command {
         .subcommands(package_operation_subcommands())
 }
 
+fn deb_group_with_github_import() -> Command {
+    deb_group().subcommand(import_from_github_subcommand())
+}
+
+fn import_from_github_subcommand() -> Command {
+    add_distribution_args(
+        Command::new("import-from-github")
+            .about("Import .deb packages from a GitHub release")
+            .arg(
+                Arg::new("github_release_url")
+                    .long("github-release-url")
+                    .value_name("URL")
+                    .help("GitHub release URL, e.g. https://github.com/owner/repo/releases/tag/v1.0")
+                    .required(true),
+            )
+            .arg(
+                Arg::new("pattern")
+                    .long("pattern")
+                    .value_name("GLOB")
+                    .help("Glob pattern to filter release assets (default: *amd64*.deb for cli-tools, *.deb for rabbitmq)")
+                    .required(false),
+            ),
+        true,
+    )
+}
+
 fn rpm_group() -> Command {
     Command::new("rpm")
         .about("Manage .rpm packages")
@@ -81,7 +116,11 @@ fn rabbitmq_group() -> Command {
     Command::new("rabbitmq")
         .about("Manage RabbitMQ packages")
         .arg_required_else_help(true)
-        .subcommands([deb_group(), rpm_group(), snapshot_group()])
+        .subcommands([
+            deb_group_with_github_import(),
+            rpm_group(),
+            snapshot_group(),
+        ])
 }
 
 fn erlang_group() -> Command {
@@ -89,6 +128,24 @@ fn erlang_group() -> Command {
         .about("Manage Erlang packages")
         .arg_required_else_help(true)
         .subcommands([deb_group(), rpm_group(), snapshot_group()])
+}
+
+fn cli_tools_group() -> Command {
+    Command::new("cli-tools")
+        .about("Manage CLI tools packages (rabbitmqadmin, rabbitmq-lqt)")
+        .arg_required_else_help(true)
+        .subcommands([deb_group_with_github_import(), snapshot_group()])
+}
+
+fn repositories_group() -> Command {
+    Command::new("repositories")
+        .about("Manage aptly repositories")
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("set-up")
+                .visible_alias("setup")
+                .about("Create all expected aptly repositories (idempotent)"),
+        )
 }
 
 fn snapshot_group() -> Command {
@@ -203,4 +260,19 @@ fn package_operation_subcommands() -> [Command; 3] {
     );
 
     [add_cmd, remove_cmd, publish_cmd]
+}
+
+fn watch_command() -> Command {
+    add_distribution_args(
+        Command::new("watch")
+            .about("Watch directories for .deb files and import them into aptly repositories")
+            .arg(
+                Arg::new("root")
+                    .long("root")
+                    .value_name("PATH")
+                    .help("Root directory containing project subdirectories (rabbitmq-server/, rabbitmq-erlang/, rabbitmq-cli/)")
+                    .required(true),
+            ),
+        false,
+    )
 }

@@ -12,21 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bellhop::common::Project;
+use bellhop::gh;
+use proptest::prelude::*;
 
-#[test]
-fn test_project_display() {
-    assert_eq!(Project::RabbitMQ.to_string(), "rabbitmq");
-    assert_eq!(Project::Erlang.to_string(), "erlang");
-    assert_eq!(Project::CliTools.to_string(), "cli-tools");
-}
+proptest! {
+    #[test]
+    fn valid_urls_always_parse(
+        owner in "[a-zA-Z0-9_-]{1,20}",
+        repo in "[a-zA-Z0-9_.-]{1,30}",
+        tag in "[a-zA-Z0-9._-]{1,20}"
+    ) {
+        let url = format!("https://github.com/{owner}/{repo}/releases/tag/{tag}");
+        let result = gh::parse_release_url(&url).unwrap();
+        prop_assert_eq!(result.owner, owner);
+        prop_assert_eq!(result.repo, repo);
+        prop_assert_eq!(result.tag, tag);
+    }
 
-#[test]
-fn test_project_copy_clone() {
-    let p1 = Project::RabbitMQ;
-    let p2 = p1;
-    assert_eq!(p1, p2);
-
-    let p3 = p1.clone();
-    assert_eq!(p1, p3);
+    #[test]
+    fn random_strings_never_panic(s in "\\PC{0,200}") {
+        let _ = gh::parse_release_url(&s);
+    }
 }

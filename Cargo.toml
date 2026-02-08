@@ -20,6 +20,9 @@ log = "0.4"
 fern = "0.7"
 tempfile = "3"
 zip = { version = "7", default-features = false, features = ["deflate", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+notify = "7"
 
 [dev-dependencies]
 tempfile = "3"

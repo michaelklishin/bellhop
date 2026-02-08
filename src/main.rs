@@ -18,7 +18,9 @@ mod cli;
 mod common;
 mod deb;
 mod errors;
+mod gh;
 mod handlers;
+mod watcher;
 
 use common::Project;
 use errors::{BellhopError, ExitCode, map_error_to_exit_code};
@@ -55,13 +57,32 @@ fn main() {
 }
 
 fn run(cli_args: &clap::ArgMatches) -> Result<(), BellhopError> {
-    if let Some((first_level, first_level_args)) = cli_args.subcommand()
-        && let Some((second_level, second_level_args)) = first_level_args.subcommand()
-        && let Some((third_level, third_level_args)) = second_level_args.subcommand()
-    {
-        return dispatch_command(first_level, second_level, third_level, third_level_args);
+    if let Some((first_level, first_level_args)) = cli_args.subcommand() {
+        if first_level == "watch" {
+            return handlers::watch(first_level_args);
+        }
+
+        if let Some((second_level, second_level_args)) = first_level_args.subcommand() {
+            if let Some(result) = dispatch_admin_command(first_level, second_level) {
+                return result;
+            }
+
+            if let Some((third_level, third_level_args)) = second_level_args.subcommand() {
+                return dispatch_command(first_level, second_level, third_level, third_level_args);
+            }
+        }
     }
     Ok(())
+}
+
+fn dispatch_admin_command(
+    first_level: &str,
+    second_level: &str,
+) -> Option<Result<(), BellhopError>> {
+    match (first_level, second_level) {
+        ("repositories", "set-up") => Some(handlers::setup_repositories()),
+        _ => None,
+    }
 }
 
 fn dispatch_command(
@@ -73,6 +94,7 @@ fn dispatch_command(
     let project = match first_level {
         "rabbitmq" => Project::RabbitMQ,
         "erlang" => Project::Erlang,
+        "cli-tools" => Project::CliTools,
         _ => {
             return Err(BellhopError::UnknownCommand {
                 first: first_level.to_string(),
@@ -86,6 +108,7 @@ fn dispatch_command(
         ("deb", "add") => handlers::add(third_level_args, project),
         ("deb", "remove") => handlers::remove(third_level_args, project),
         ("deb", "publish") => handlers::publish(third_level_args, project),
+        ("deb", "import-from-github") => handlers::import_from_github(third_level_args, project),
         ("snapshot", "take") => handlers::take_snapshots(third_level_args, project),
         ("snapshot", "delete") => handlers::delete_snapshots(third_level_args, project),
         ("snapshot", "list") => handlers::list_snapshots(third_level_args, project),

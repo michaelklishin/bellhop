@@ -28,7 +28,11 @@ fn distribution_alias_strategy() -> impl Strategy<Value = DistributionAlias> {
 }
 
 fn project_strategy() -> impl Strategy<Value = Project> {
-    prop_oneof![Just(Project::RabbitMQ), Just(Project::Erlang),]
+    prop_oneof![
+        Just(Project::RabbitMQ),
+        Just(Project::Erlang),
+        Just(Project::CliTools),
+    ]
 }
 
 proptest! {

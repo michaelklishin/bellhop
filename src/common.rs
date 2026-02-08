@@ -17,6 +17,7 @@ use std::fmt::{self, Display, Formatter};
 pub enum Project {
     RabbitMQ,
     Erlang,
+    CliTools,
 }
 
 impl Display for Project {
@@ -24,6 +25,7 @@ impl Display for Project {
         match self {
             Project::RabbitMQ => write!(f, "rabbitmq"),
             Project::Erlang => write!(f, "erlang"),
+            Project::CliTools => write!(f, "cli-tools"),
         }
     }
 }

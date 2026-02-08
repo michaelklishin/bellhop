@@ -66,6 +66,21 @@ pub enum BellhopError {
         "aptly executable not found. Please install aptly first: https://www.aptly.info/download/"
     )]
     AptlyNotFound,
+
+    #[error("Invalid GitHub release URL: {url}")]
+    InvalidGitHubReleaseUrl { url: String },
+
+    #[error("GitHub API request failed: {message}")]
+    GitHubApiFailed { message: String },
+
+    #[error("No assets matching pattern '{pattern}' in the GitHub release")]
+    NoAssetsInRelease { pattern: String },
+
+    #[error("Failed to download {url}: {message}")]
+    DownloadFailed { url: String, message: String },
+
+    #[error("Watcher error: {0}")]
+    WatcherError(String),
 }
 
 #[repr(i32)]
@@ -96,5 +111,10 @@ pub fn map_error_to_exit_code(error: &BellhopError) -> ExitCode {
         BellhopError::IoError(_) => ExitCode::Software,
         BellhopError::ArchiveExtractionFailed(_) => ExitCode::Software,
         BellhopError::AptlyNotFound => ExitCode::Software,
+        BellhopError::InvalidGitHubReleaseUrl { .. } => ExitCode::DataErr,
+        BellhopError::GitHubApiFailed { .. } => ExitCode::Software,
+        BellhopError::NoAssetsInRelease { .. } => ExitCode::DataErr,
+        BellhopError::DownloadFailed { .. } => ExitCode::Software,
+        BellhopError::WatcherError(_) => ExitCode::Software,
     }
 }

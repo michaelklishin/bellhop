@@ -25,6 +25,7 @@ use std::process::{Command, Output};
 use std::sync::OnceLock;
 
 const ALL_ARCHITECTURES_ARG: &str = "-architectures=amd64,arm64,armel,armhf,i386";
+const AMD64_ONLY_ARG: &str = "-architectures=amd64";
 const GPG_KEY_ID_ARG: &str = "-gpg-key=0A9AF2115F4687BD29803A206B73A36E6026DFCA";
 
 fn gpg_key_arg() -> String {
@@ -111,7 +112,7 @@ pub fn add_package(
     Ok(())
 }
 
-fn update_snapshots_for_releases(
+pub fn update_snapshots_for_releases(
     project: &Project,
     target_releases: &[DistributionAlias],
     suffix: &str,
@@ -139,7 +140,7 @@ fn add_single_package(
     update_snapshots_for_releases(&project, target_releases, &suffix)
 }
 
-fn add_single_package_no_snapshot(
+pub fn add_single_package_no_snapshot(
     project: &Project,
     deb_path: &Path,
     target_releases: &[DistributionAlias],
@@ -285,6 +286,47 @@ pub fn delete_snapshots(
     Ok(())
 }
 
+pub fn list_repos() -> Result<HashSet<String>, BellhopError> {
+    let output = aptly_command()
+        .arg("repo")
+        .arg("list")
+        .arg("-raw")
+        .output()?;
+    let output = check_aptly_output(output, "aptly repo list -raw")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect())
+}
+
+pub fn create_repo(name: &str) -> Result<(), BellhopError> {
+    info!("Creating repository '{name}'");
+    let output = aptly_command()
+        .arg("repo")
+        .arg("create")
+        .arg(name)
+        .output()?;
+    check_aptly_output(output, format!("aptly repo create {name}"))?;
+    Ok(())
+}
+
+pub fn expected_repos() -> Vec<(Project, String)> {
+    let mut repos = Vec::with_capacity(16);
+    for dist in DistributionAlias::all() {
+        repos.push((Project::RabbitMQ, repo_name(&Project::RabbitMQ, dist)));
+    }
+    for dist in DistributionAlias::erlang_supported() {
+        repos.push((Project::Erlang, repo_name(&Project::Erlang, dist)));
+    }
+    for dist in DistributionAlias::all() {
+        repos.push((Project::CliTools, repo_name(&Project::CliTools, dist)));
+    }
+    repos
+}
+
 pub fn repo_name(project: &Project, rel: &DistributionAlias) -> String {
     match project {
         Project::RabbitMQ => {
@@ -292,6 +334,9 @@ pub fn repo_name(project: &Project, rel: &DistributionAlias) -> String {
         }
         Project::Erlang => {
             format!("repo-rabbitmq-erlang-{rel}")
+        }
+        Project::CliTools => {
+            format!("repo-rabbitmq-cli-{rel}")
         }
     }
 }
@@ -322,6 +367,7 @@ pub fn project_prefix(project: &Project) -> &'static str {
     match project {
         Project::RabbitMQ => "rabbitmq-server",
         Project::Erlang => "rabbitmq-erlang",
+        Project::CliTools => "rabbitmq-cli",
     }
 }
 
@@ -334,10 +380,16 @@ fn run_repo_add(
     let path_str = package_file_path.display();
     info!("Adding package {path_str} to repo '{repo_name}' for distribution '{rel}'");
 
+    let arch_arg = match project {
+        Project::RabbitMQ => Some(ALL_ARCHITECTURES_ARG),
+        Project::CliTools => Some(AMD64_ONLY_ARG),
+        Project::Erlang => None,
+    };
+
     let output = aptly_command()
         .arg("repo")
         .arg("add")
-        .args(matches!(project, Project::RabbitMQ).then_some(ALL_ARCHITECTURES_ARG))
+        .args(arch_arg)
         .arg(repo_name)
         .arg(package_file_path)
         .output()?;
@@ -351,6 +403,7 @@ fn run_repo_remove(project: &Project, version: &str, repo_name: &str) -> Result<
     let query = match project {
         Project::RabbitMQ => format!("rabbitmq-server (= {version})"),
         Project::Erlang => format!("Name (~ ^erlang), Version (= {version})"),
+        Project::CliTools => format!("Version (= {version})"),
     };
 
     info!("Removing packages matching query '{query}' from repo '{repo_name}'");

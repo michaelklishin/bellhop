@@ -19,4 +19,6 @@ pub mod cli;
 pub mod common;
 pub mod deb;
 pub mod errors;
+pub mod gh;
 pub mod handlers;
+pub mod watcher;
