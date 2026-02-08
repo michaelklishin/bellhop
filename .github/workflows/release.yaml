@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-    - 'v\d\.\d+\.\d+'
+    - 'v[0-9]+.[0-9]+.[0-9]+*'
 
 defaults:
   run:
@@ -12,41 +12,62 @@ defaults:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
-  release:
-    name: Build and Archive
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
 
+      - name: Validate version
+        uses: michaelklishin/rust-release-action@v1
+        id: version
+        with:
+          command: validate-version
+          validate-cargo-toml: true
+        env:
+          NEXT_RELEASE_VERSION: ${{ vars.NEXT_RELEASE_VERSION }}
+
+      - name: Validate changelog
+        uses: michaelklishin/rust-release-action@v1
+        with:
+          command: validate-changelog
+          version: ${{ steps.version.outputs.version }}
+
+      - name: Extract changelog
+        uses: michaelklishin/rust-release-action@v1
+        id: changelog
+        with:
+          command: extract-changelog
+          version: ${{ steps.version.outputs.version }}
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ steps.changelog.outputs.release_notes_file }}
+          retention-days: 1
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: [validate]
     runs-on: ${{ matrix.os }}
-
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # macOS, aarch64
           - target: aarch64-apple-darwin
             os: macos-latest
-            target_rustflags: ''
-          # Linux, x86-64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
-            target_rustflags: ''
-          # Linux, aarch64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
-            target_rustflags: ''
-          # Linux musl, x86-64 (static, for Alpine)
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-22.04
-            target_rustflags: ''
-          # Linux musl, aarch64 (static, for Alpine)
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-24.04-arm
-            target_rustflags: ''
-
-    permissions:
-      id-token: write
-      contents: write
-
     steps:
       - uses: actions/checkout@v6
 
@@ -54,144 +75,84 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: .github/scripts/free_disk_space.sh
 
-      - name: Install Rust toolchains
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
           targets: ${{ matrix.target }}
 
-      - name: Install Nu Shell
-        uses: hustcer/setup-nu@v3
+      - name: Build release archive
+        uses: michaelklishin/rust-release-action@v1
+        id: build
         with:
-          version: '0.100'
+          command: release
+          target: ${{ matrix.target }}
+          binary-name: bellhop
+          locked: true
+          archive: true
+          checksum: sha256
+          include: 'README.md,LICENSE'
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.target }}
+          path: |
+            ${{ steps.build.outputs.artifact_path }}
+            ${{ steps.build.outputs.artifact_path }}.sha256
+          retention-days: 2
+
+  release:
+    name: Publish Release
+    needs: [validate, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Collect release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "bellhop-*" -o -name "*.sha256" \) -exec cp {} release/ \;
+
+      - name: Collect artifact checksums
+        uses: michaelklishin/rust-release-action@v1
+        id: collect
+        with:
+          command: collect-artifacts
+          binary-name: bellhop
+          artifacts-dir: release
+          base-url: https://github.com/rabbitmq/bellhop/releases/download/v${{ needs.validate.outputs.version }}
+
+      - name: Format release body
+        uses: michaelklishin/rust-release-action@v1
+        id: format
+        with:
+          command: format-release
+          version: ${{ needs.validate.outputs.version }}
+          artifacts-dir: release
+          notes-file: release_notes.md
+
+      - name: Copy checksums file to release
+        run: cp ${{ steps.collect.outputs.checksums_file }} release/ || true
+
+      - name: Publish bellhop release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          draft: false
+          body: ${{ steps.format.outputs.body }}
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build a bellhop release archive on macOS
-        id: release-build-macos
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: nu ./scripts/release-macos.nu
-        env:
-          OS: ${{ matrix.os }}
-          TARGET: ${{ matrix.target }}
-          TARGET_RUSTFLAGS: ${{ matrix.target_rustflags }}
-          SRC: ${{ github.workspace }}
-      - name: Store macOS build artifact
-        id: upload-macos-artifact
-        if: ${{ matrix.os == 'macos-latest' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          path: "${{ github.workspace }}/target/${{ matrix.target }}/release/bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          retention-days: 2
-
-      - name: Build a bellhop release archive on x86-64 Linux
-        id: release-build-amd64-linux
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        run: nu ./scripts/release-linux.nu
-        env:
-          OS: ${{ matrix.os }}
-          TARGET: ${{ matrix.target }}
-          TARGET_RUSTFLAGS: ${{ matrix.target_rustflags }}
-          SRC: ${{ github.workspace }}
-      - name: Store x86-64 Linux build artifact
-        id: upload-amd64-linux-artifact
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          path: "${{ github.workspace }}/target/${{ matrix.target }}/release/bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          retention-days: 2
-
-      - name: Build a bellhop release archive on aarch64 Linux
-        id: release-build-aarch64-linux
-        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-        run: nu ./scripts/release-linux.nu
-        env:
-          OS: ${{ matrix.os }}
-          TARGET: ${{ matrix.target }}
-          TARGET_RUSTFLAGS: ${{ matrix.target_rustflags }}
-          SRC: ${{ github.workspace }}
-      - name: Store aarch64 Linux build artifact
-        id: upload-aarch64-linux-artifact
-        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          path: "${{ github.workspace }}/target/${{ matrix.target }}/release/bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          retention-days: 2
-
-      - name: Build a static bellhop release archive on x86-64 Linux (musl)
-        id: release-build-amd64-linux-musl
-        if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
-        run: nu ./scripts/release-linux.nu
-        env:
-          OS: ${{ matrix.os }}
-          TARGET: ${{ matrix.target }}
-          TARGET_RUSTFLAGS: ${{ matrix.target_rustflags }}
-          SRC: ${{ github.workspace }}
-      - name: Store x86-64 Linux musl build artifact
-        id: upload-amd64-linux-musl-artifact
-        if: ${{ matrix.target == 'x86_64-unknown-linux-musl' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          path: "${{ github.workspace }}/target/${{ matrix.target }}/release/bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          retention-days: 2
-
-      - name: Build a static bellhop release archive on aarch64 Linux (musl)
-        id: release-build-aarch64-linux-musl
-        if: ${{ matrix.target == 'aarch64-unknown-linux-musl' }}
-        run: nu ./scripts/release-linux.nu
-        env:
-          OS: ${{ matrix.os }}
-          TARGET: ${{ matrix.target }}
-          TARGET_RUSTFLAGS: ${{ matrix.target_rustflags }}
-          SRC: ${{ github.workspace }}
-      - name: Store aarch64 Linux musl build artifact
-        id: upload-aarch64-linux-musl-artifact
-        if: ${{ matrix.target == 'aarch64-unknown-linux-musl' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          path: "${{ github.workspace }}/target/${{ matrix.target }}/release/bellhop-${{ vars.NEXT_RELEASE_VERSION }}-${{ matrix.target }}"
-          retention-days: 2
-
-
-  create_gh_release:
-    needs: [release]
-    runs-on: ubuntu-24.04
-    steps:
-    - name: Fetch macOS archive
-      uses: actions/download-artifact@v4
-      with:
-        name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-aarch64-apple-darwin"
-        path: ./artifacts
-    - name: Fetch amd64 Linux archive
-      uses: actions/download-artifact@v4
-      with:
-        name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-x86_64-unknown-linux-gnu"
-        path: ./artifacts
-    - name: Fetch aarch64 Linux archive
-      uses: actions/download-artifact@v4
-      with:
-        name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-aarch64-unknown-linux-gnu"
-        path: ./artifacts
-    - name: Fetch x86-64 Linux musl (static) archive
-      uses: actions/download-artifact@v4
-      with:
-        name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-x86_64-unknown-linux-musl"
-        path: ./artifacts
-    - name: Fetch aarch64 Linux musl (static) archive
-      uses: actions/download-artifact@v4
-      with:
-        name: "bellhop-${{ vars.NEXT_RELEASE_VERSION }}-aarch64-unknown-linux-musl"
-        path: ./artifacts
-    - name: Publish bellhop release archive
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v${{ vars.NEXT_RELEASE_VERSION }}
-        draft: false
-        files: ./artifacts/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
