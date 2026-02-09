@@ -22,7 +22,7 @@ tempfile = "3"
 zip = { version = "7", default-features = false, features = ["deflate", "time"] }
 reqwest = { version = "0.13.1", default-features = false, features = ["blocking", "json", "rustls"] }
 serde = { version = "1.0", features = ["derive"] }
-notify = "7"
+notify = "8"
 
 [dev-dependencies]
 tempfile = "3"
