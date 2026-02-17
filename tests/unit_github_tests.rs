@@ -54,6 +54,26 @@ fn test_parse_release_url_complex_tag() {
 }
 
 #[test]
+fn test_parse_release_url_without_tag_segment() {
+    let result =
+        gh::parse_release_url("https://github.com/rabbitmq/rabbitmq-server/releases/v4.2.4")
+            .unwrap();
+    assert_eq!(result.owner, "rabbitmq");
+    assert_eq!(result.repo, "rabbitmq-server");
+    assert_eq!(result.tag, "v4.2.4");
+}
+
+#[test]
+fn test_parse_release_url_without_tag_segment_trailing_slash() {
+    let result =
+        gh::parse_release_url("https://github.com/rabbitmq/rabbitmq-server/releases/v4.2.4/")
+            .unwrap();
+    assert_eq!(result.owner, "rabbitmq");
+    assert_eq!(result.repo, "rabbitmq-server");
+    assert_eq!(result.tag, "v4.2.4");
+}
+
+#[test]
 fn test_parse_invalid_url_not_github() {
     assert!(gh::parse_release_url("https://gitlab.com/owner/repo/releases/tag/v1.0").is_err());
 }
@@ -66,6 +86,11 @@ fn test_parse_invalid_url_not_release() {
 #[test]
 fn test_parse_invalid_url_missing_tag() {
     assert!(gh::parse_release_url("https://github.com/owner/repo/releases/tag/").is_err());
+}
+
+#[test]
+fn test_parse_invalid_url_releases_with_no_tag() {
+    assert!(gh::parse_release_url("https://github.com/owner/repo/releases/").is_err());
 }
 
 #[test]

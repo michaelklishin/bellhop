@@ -33,17 +33,19 @@ pub fn parse_release_url(url: &str) -> Result<GitHubRelease, BellhopError> {
             url: url.to_string(),
         })?;
 
-    // Expected format: {owner}/{repo}/releases/tag/{tag}
+    // Expected formats:
+    //   {owner}/{repo}/releases/tag/{tag}
+    //   {owner}/{repo}/releases/{tag}
     let parts: Vec<&str> = path.splitn(5, '/').collect();
-    if parts.len() != 5 || parts[2] != "releases" || parts[3] != "tag" {
+    let (owner, repo, tag) = if parts.len() == 5 && parts[2] == "releases" && parts[3] == "tag" {
+        (parts[0], parts[1], parts[4])
+    } else if parts.len() == 4 && parts[2] == "releases" && parts[3] != "tag" {
+        (parts[0], parts[1], parts[3])
+    } else {
         return Err(BellhopError::InvalidGitHubReleaseUrl {
             url: url.to_string(),
         });
-    }
-
-    let owner = parts[0];
-    let repo = parts[1];
-    let tag = parts[4];
+    };
 
     if owner.is_empty() || repo.is_empty() || tag.is_empty() {
         return Err(BellhopError::InvalidGitHubReleaseUrl {

@@ -30,6 +30,22 @@ proptest! {
     }
 
     #[test]
+    fn short_urls_always_parse(
+        owner in "[a-zA-Z0-9_-]{1,20}",
+        repo in "[a-zA-Z0-9_.-]{1,30}",
+        tag in "[a-zA-Z0-9._-]{1,20}"
+    ) {
+        // "tag" is ambiguous: could be {owner}/{repo}/releases/tag (short form)
+        // or the canonical prefix {owner}/{repo}/releases/tag/{tag} with a missing tag
+        prop_assume!(tag != "tag");
+        let url = format!("https://github.com/{owner}/{repo}/releases/{tag}");
+        let result = gh::parse_release_url(&url).unwrap();
+        prop_assert_eq!(result.owner, owner);
+        prop_assert_eq!(result.repo, repo);
+        prop_assert_eq!(result.tag, tag);
+    }
+
+    #[test]
     fn random_strings_never_panic(s in "\\PC{0,200}") {
         let _ = gh::parse_release_url(&s);
     }
