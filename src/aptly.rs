@@ -28,6 +28,9 @@ const ALL_ARCHITECTURES_ARG: &str = "-architectures=amd64,arm64,armel,armhf,i386
 const AMD64_ONLY_ARG: &str = "-architectures=amd64";
 const GPG_KEY_ID_ARG: &str = "-gpg-key=0A9AF2115F4687BD29803A206B73A36E6026DFCA";
 
+const TEMP_SNAPSHOT_SUFFIX: &str = "-bellhop-tmp";
+const IDENTICAL_SNAPSHOTS_MARKER: &str = "Snapshots are identical.";
+
 fn gpg_key_arg() -> String {
     if let Ok(key_id) = env::var("BELLHOP_GPG_KEY") {
         format!("-gpg-key={key_id}")
@@ -268,11 +271,99 @@ pub fn take_snapshot(
     target_releases: &[DistributionAlias],
     suffix: &str,
 ) -> Result<(), BellhopError> {
+    let existing_snapshots = list_snapshot_names()?;
+    let published_repos = list_published_repos()?;
+
     for rel in target_releases {
         let repo_name = repo_name(&project, rel);
-        run_snapshot_create(&project, &repo_name, rel, suffix)?;
+        let snapshot_name = snapshot_name_with_suffix(&project, rel, suffix);
+
+        if existing_snapshots.contains(&snapshot_name) {
+            retake_snapshot(&snapshot_name, &repo_name, &published_repos)?;
+        } else {
+            run_snapshot_create(&project, &repo_name, rel, suffix)?;
+        }
     }
     Ok(())
+}
+
+/// `aptly` cannot diff a snapshot against a repository, hence the temporary snapshot.
+/// `aptly snapshot diff` is used rather than a comparison of package names because it also
+/// reports packages whose name and version match but whose contents differ.
+fn retake_snapshot(
+    snapshot_name: &str,
+    repo_name: &str,
+    published_repos: &HashSet<String>,
+) -> Result<(), BellhopError> {
+    let temp_name = format!("{snapshot_name}{TEMP_SNAPSHOT_SUFFIX}");
+
+    // A temporary snapshot left behind by an interrupted run would block creation below
+    run_snapshot_drop_by_name(&temp_name);
+    run_snapshot_create_by_name(&temp_name, repo_name)?;
+
+    let identical = snapshots_are_identical(&temp_name, snapshot_name);
+
+    // The temporary snapshot is kept only when it replaces the existing one
+    match identical {
+        Ok(true) => {
+            run_snapshot_drop_by_name(&temp_name);
+            info!("Snapshot '{snapshot_name}' already matches repo '{repo_name}', nothing to do");
+            Ok(())
+        }
+        Ok(false) => {
+            if is_snapshot_published(published_repos, snapshot_name) {
+                run_snapshot_drop_by_name(&temp_name);
+                return Err(BellhopError::PublishedSnapshotIsStale {
+                    snapshot: snapshot_name.to_string(),
+                    repo: repo_name.to_string(),
+                });
+            }
+
+            info!("Snapshot '{snapshot_name}' is out of date, replacing it");
+            run_snapshot_drop_strictly(snapshot_name)?;
+            run_snapshot_rename(&temp_name, snapshot_name)?;
+            info!("Snapshot replaced successfully: {snapshot_name}");
+            Ok(())
+        }
+        Err(err) => {
+            run_snapshot_drop_by_name(&temp_name);
+            Err(err)
+        }
+    }
+}
+
+fn snapshots_are_identical(one: &str, other: &str) -> Result<bool, BellhopError> {
+    let output = aptly_command()
+        .arg("snapshot")
+        .arg("diff")
+        .arg(one)
+        .arg(other)
+        .output()?;
+
+    let output = check_aptly_output(output, format!("aptly snapshot diff {one} {other}"))?;
+
+    Ok(String::from_utf8_lossy(&output.stdout).contains(IDENTICAL_SNAPSHOTS_MARKER))
+}
+
+fn is_snapshot_published(published_repos: &HashSet<String>, snapshot_name: &str) -> bool {
+    let search_pattern = format!("[{snapshot_name}]");
+    published_repos.iter().any(|p| p.contains(&search_pattern))
+}
+
+fn list_snapshot_names() -> Result<HashSet<String>, BellhopError> {
+    let output = aptly_command()
+        .arg("snapshot")
+        .arg("list")
+        .arg("-raw")
+        .output()?;
+    let output = check_aptly_output(output, "aptly snapshot list -raw")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect())
 }
 
 pub fn delete_snapshots(
@@ -450,12 +541,16 @@ fn run_snapshot_create(
     suffix: &str,
 ) -> Result<(), BellhopError> {
     let snapshot_name = snapshot_name_with_suffix(project, rel, suffix);
+    run_snapshot_create_by_name(&snapshot_name, repo_name)
+}
+
+fn run_snapshot_create_by_name(snapshot_name: &str, repo_name: &str) -> Result<(), BellhopError> {
     info!("Creating snapshot '{snapshot_name}' from repo '{repo_name}'");
 
     let output = aptly_command()
         .arg("snapshot")
         .arg("create")
-        .arg(&snapshot_name)
+        .arg(snapshot_name)
         .arg("from")
         .arg("repo")
         .arg(repo_name)
@@ -468,6 +563,59 @@ fn run_snapshot_create(
 
     info!("Snapshot created successfully: {snapshot_name}");
     Ok(())
+}
+
+fn run_snapshot_rename(old_name: &str, new_name: &str) -> Result<(), BellhopError> {
+    let output = aptly_command()
+        .arg("snapshot")
+        .arg("rename")
+        .arg(old_name)
+        .arg(new_name)
+        .output()?;
+
+    check_aptly_output(
+        output,
+        format!("aptly snapshot rename {old_name} {new_name}"),
+    )?;
+    Ok(())
+}
+
+/// `aptly` refuses to drop a published snapshot even with `-force`, which only overrides
+/// snapshots referenced by other snapshots.
+fn run_snapshot_drop_strictly(snapshot_name: &str) -> Result<(), BellhopError> {
+    let output = aptly_command()
+        .arg("snapshot")
+        .arg("drop")
+        .arg("-force")
+        .arg(snapshot_name)
+        .output()?;
+
+    check_aptly_output(
+        output,
+        format!("aptly snapshot drop -force {snapshot_name}"),
+    )?;
+    Ok(())
+}
+
+/// Ignores all errors, including the snapshot not existing
+fn run_snapshot_drop_by_name(snapshot_name: &str) {
+    debug!("Dropping snapshot '{snapshot_name}'");
+
+    let output = aptly_command()
+        .arg("snapshot")
+        .arg("drop")
+        .arg("-force")
+        .arg(snapshot_name)
+        .output();
+
+    if let Ok(out) = output
+        && !out.status.success()
+    {
+        debug!(
+            "Snapshot drop failed (this is okay): {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
 }
 
 fn run_snapshot_drop(

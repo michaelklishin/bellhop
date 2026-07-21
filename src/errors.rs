@@ -81,6 +81,11 @@ pub enum BellhopError {
 
     #[error("Watcher error: {0}")]
     WatcherError(String),
+
+    #[error(
+        "Snapshot '{snapshot}' already exists, its contents differ from repository '{repo}', and it is currently published. Replacing it would alter an already published repository. Take a snapshot under a different name with --suffix instead."
+    )]
+    PublishedSnapshotIsStale { snapshot: String, repo: String },
 }
 
 #[repr(i32)]
@@ -116,5 +121,6 @@ pub fn map_error_to_exit_code(error: &BellhopError) -> ExitCode {
         BellhopError::NoAssetsInRelease { .. } => ExitCode::DataErr,
         BellhopError::DownloadFailed { .. } => ExitCode::Software,
         BellhopError::WatcherError(_) => ExitCode::Software,
+        BellhopError::PublishedSnapshotIsStale { .. } => ExitCode::DataErr,
     }
 }
