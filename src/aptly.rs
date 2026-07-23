@@ -15,7 +15,6 @@ use crate::archive::{self, PackageSource};
 use crate::deb::DistributionAlias;
 use crate::errors::BellhopError;
 use crate::{cli, common::Project};
-use chrono::Local;
 use clap::ArgMatches;
 use log::{debug, info};
 use std::collections::HashSet;
@@ -120,12 +119,32 @@ pub fn update_snapshots_for_releases(
     target_releases: &[DistributionAlias],
     suffix: &str,
 ) -> Result<(), BellhopError> {
+    let existing_snapshots = list_snapshot_names()?;
+    let published_repos = list_published_repos()?;
+
     for rel in target_releases {
-        let repo_name = repo_name(project, rel);
-        run_snapshot_drop(project, rel, suffix)?;
-        run_snapshot_create(project, &repo_name, rel, suffix)?;
+        create_or_retake_snapshot(project, rel, suffix, &existing_snapshots, &published_repos)?;
     }
     Ok(())
+}
+
+/// Package imports and hand-taken snapshots share this path so that an import never falls back to
+/// a drop-then-create, which cannot replace a published snapshot.
+fn create_or_retake_snapshot(
+    project: &Project,
+    rel: &DistributionAlias,
+    suffix: &str,
+    existing_snapshots: &HashSet<String>,
+    published_repos: &HashSet<String>,
+) -> Result<(), BellhopError> {
+    let repo_name = repo_name(project, rel);
+    let snapshot_name = snapshot_name_with_suffix(project, rel, suffix);
+
+    if existing_snapshots.contains(&snapshot_name) {
+        retake_snapshot(&snapshot_name, &repo_name, published_repos)
+    } else {
+        run_snapshot_create_by_name(&snapshot_name, &repo_name)
+    }
 }
 
 fn add_single_package(
@@ -190,7 +209,7 @@ pub fn remove_package_from_archive(
         PackageSource::SingleDeb(deb_path) => {
             info!("Removing single .deb package");
             let version = archive::extract_version_from_deb(&deb_path)?;
-            remove_single_package(cli_args, &version, project, target_releases)?;
+            remove_package(cli_args, &version, project, target_releases)?;
         }
         PackageSource::Archive {
             deb_files,
@@ -215,23 +234,6 @@ pub fn remove_package_from_archive(
     Ok(())
 }
 
-fn remove_single_package(
-    cli_args: &ArgMatches,
-    version: &str,
-    project: Project,
-    target_releases: &[DistributionAlias],
-) -> Result<(), BellhopError> {
-    let suffix = cli::suffix(cli_args);
-
-    for rel in target_releases {
-        let repo_name = repo_name(&project, rel);
-        run_repo_remove(&project, version, &repo_name)?;
-        run_snapshot_drop(&project, rel, &suffix)?;
-        run_snapshot_create(&project, &repo_name, rel, &suffix)?;
-    }
-    Ok(())
-}
-
 fn remove_single_package_no_snapshot(
     project: &Project,
     version: &str,
@@ -247,10 +249,11 @@ fn remove_single_package_no_snapshot(
 pub fn publish(
     project: Project,
     target_releases: &[DistributionAlias],
+    suffix: &str,
 ) -> Result<(), BellhopError> {
     let published_repos = list_published_repos()?;
     for rel in target_releases {
-        run_snapshot_switch(&project, rel, &published_repos)?;
+        run_snapshot_switch(&project, rel, suffix, &published_repos)?;
     }
     Ok(())
 }
@@ -271,20 +274,7 @@ pub fn take_snapshot(
     target_releases: &[DistributionAlias],
     suffix: &str,
 ) -> Result<(), BellhopError> {
-    let existing_snapshots = list_snapshot_names()?;
-    let published_repos = list_published_repos()?;
-
-    for rel in target_releases {
-        let repo_name = repo_name(&project, rel);
-        let snapshot_name = snapshot_name_with_suffix(&project, rel, suffix);
-
-        if existing_snapshots.contains(&snapshot_name) {
-            retake_snapshot(&snapshot_name, &repo_name, &published_repos)?;
-        } else {
-            run_snapshot_create(&project, &repo_name, rel, suffix)?;
-        }
-    }
-    Ok(())
+    update_snapshots_for_releases(&project, target_releases, suffix)
 }
 
 /// `aptly` cannot diff a snapshot against a repository, hence the temporary snapshot.
@@ -432,13 +422,6 @@ pub fn repo_name(project: &Project, rel: &DistributionAlias) -> String {
     }
 }
 
-fn snapshot_name(project: &Project, rel: &DistributionAlias) -> String {
-    let date = Local::now().format("%d-%b-%y");
-    let prefix = project_prefix(project);
-
-    format!("snap-{}-{}-{}", prefix, rel.release_name(), date)
-}
-
 pub fn snapshot_name_with_suffix(
     project: &Project,
     rel: &DistributionAlias,
@@ -532,16 +515,6 @@ fn run_snapshot_show(
     print!("{}", String::from_utf8_lossy(&output.stdout));
 
     Ok(())
-}
-
-fn run_snapshot_create(
-    project: &Project,
-    repo_name: &str,
-    rel: &DistributionAlias,
-    suffix: &str,
-) -> Result<(), BellhopError> {
-    let snapshot_name = snapshot_name_with_suffix(project, rel, suffix);
-    run_snapshot_create_by_name(&snapshot_name, repo_name)
 }
 
 fn run_snapshot_create_by_name(snapshot_name: &str, repo_name: &str) -> Result<(), BellhopError> {
@@ -667,9 +640,10 @@ fn is_repo_published(published_repos: &HashSet<String>, prefix: &str, distributi
 fn run_snapshot_switch(
     project: &Project,
     rel: &DistributionAlias,
+    suffix: &str,
     published_repos: &HashSet<String>,
 ) -> Result<(), BellhopError> {
-    let snapshot_name = snapshot_name(project, rel);
+    let snapshot_name = snapshot_name_with_suffix(project, rel, suffix);
     let rel_path = rel_path_with_prefix(project, rel);
 
     info!("Publishing snapshot '{snapshot_name}' to '{rel_path}'");

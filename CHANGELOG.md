@@ -4,7 +4,7 @@
 
 ### Enhancements
 
- * (none yet)
+ * `publish` now supports a snapshot name suffix
 
 
 ## 1.3.0 (Feb 8, 2026)

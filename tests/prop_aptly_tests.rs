@@ -68,6 +68,19 @@ proptest! {
         prop_assert!(!name.contains('\\'));
     }
 
+    // add and publish resolve the snapshot to switch to through the same function, so the suffix
+    // an import writes is always the suffix a publish can target.
+    #[test]
+    fn snapshot_names_end_with_their_suffix(
+        project in project_strategy(),
+        dist in distribution_alias_strategy(),
+        suffix in "[A-Za-z0-9-]+"
+    ) {
+        let name = bellhop::aptly::snapshot_name_with_suffix(&project, &dist, &suffix);
+        prop_assert!(name.ends_with(&suffix));
+        prop_assert!(name.contains(dist.release_name()));
+    }
+
     #[test]
     fn rel_paths_are_valid_posix_paths(
         project in project_strategy(),

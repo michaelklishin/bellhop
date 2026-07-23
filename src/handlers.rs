@@ -57,8 +57,9 @@ pub fn publish(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopErr
     aptly::check_aptly_available()?;
 
     let target_releases = cli::distributions(cli_args, project)?;
+    let suffix = cli::suffix(cli_args);
 
-    aptly::publish(project, &target_releases)
+    aptly::publish(project, &target_releases, &suffix)
 }
 
 pub fn list_snapshots(cli_args: &ArgMatches, project: Project) -> Result<(), BellhopError> {

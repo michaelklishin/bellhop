@@ -21,7 +21,7 @@ bellhop erlang deb add -p erlang-27.3.4.6.zip --all
 
 # Create a snapshot before publishing
 bellhop rabbitmq snapshot take -d bookworm --suffix 30-Nov-24
-bellhop rabbitmq deb publish -d bookworm
+bellhop rabbitmq deb publish -d bookworm --suffix 30-Nov-24
 
 # Remove a version in the Bookworm repo
 bellhop rabbitmq deb remove -v 4.1.5-1 -d bookworm

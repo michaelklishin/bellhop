@@ -83,7 +83,7 @@ pub enum BellhopError {
     WatcherError(String),
 
     #[error(
-        "Snapshot '{snapshot}' already exists, its contents differ from repository '{repo}', and it is currently published. Replacing it would alter an already published repository. Take a snapshot under a different name with --suffix instead."
+        "Snapshot '{snapshot}' already exists, its contents differ from repository '{repo}', and it is currently published. Replacing it would alter an already published repository. Re-run the same command with --suffix NAME to write a separate snapshot, then publish it with 'publish --suffix NAME'."
     )]
     PublishedSnapshotIsStale { snapshot: String, repo: String },
 }

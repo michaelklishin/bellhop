@@ -256,7 +256,7 @@ fn package_operation_subcommands() -> [Command; 3] {
         Command::new("publish").about(
             "Regenerates all repositories from recent snapshots (created by the 'add' command)",
         ),
-        false,
+        true,
     );
 
     [add_cmd, remove_cmd, publish_cmd]
