@@ -17,6 +17,7 @@ use proptest::prelude::*;
 
 fn distribution_alias_strategy() -> impl Strategy<Value = DistributionAlias> {
     prop_oneof![
+        Just(DistributionAlias::Resolute),
         Just(DistributionAlias::Noble),
         Just(DistributionAlias::Jammy),
         Just(DistributionAlias::Focal),
@@ -40,6 +41,7 @@ fn debian_release_strategy() -> impl Strategy<Value = DebianRelease> {
 
 fn ubuntu_release_strategy() -> impl Strategy<Value = UbuntuRelease> {
     prop_oneof![
+        Just(UbuntuRelease::Resolute),
         Just(UbuntuRelease::Noble),
         Just(UbuntuRelease::Jammy),
         Just(UbuntuRelease::Focal),
@@ -79,7 +81,7 @@ proptest! {
     fn distribution_alias_family_matches_release(alias in distribution_alias_strategy()) {
         let release = alias.to_release();
         match (&alias, &release) {
-            (DistributionAlias::Noble | DistributionAlias::Jammy | DistributionAlias::Focal, Release::Ubuntu(_)) => {},
+            (DistributionAlias::Resolute | DistributionAlias::Noble | DistributionAlias::Jammy | DistributionAlias::Focal, Release::Ubuntu(_)) => {},
             (DistributionAlias::Trixie | DistributionAlias::Bookworm | DistributionAlias::Bullseye, Release::Debian(_)) => {},
             _ => prop_assert!(false, "Family mismatch for {:?}", alias),
         }

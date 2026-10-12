@@ -80,16 +80,19 @@ fn test_releases_for_project_filters_erlang() {
 
 #[test]
 fn test_releases_for_project_passes_all_for_rabbitmq() {
-    let all = DistributionAlias::all().to_vec();
+    let mut all = DistributionAlias::all().to_vec();
+    all.push(DistributionAlias::Resolute);
     let rabbitmq_dists = watcher::releases_for_project(&Project::RabbitMQ, &all);
-    assert_eq!(rabbitmq_dists.len(), 6);
+    assert_eq!(rabbitmq_dists.len(), 7);
 }
 
 #[test]
 fn test_releases_for_project_passes_all_for_cli_tools() {
-    let all = DistributionAlias::all().to_vec();
+    let mut all = DistributionAlias::all().to_vec();
+    all.push(DistributionAlias::Resolute);
     let cli_dists = watcher::releases_for_project(&Project::CliTools, &all);
     assert_eq!(cli_dists.len(), 6);
+    assert!(!cli_dists.contains(&&DistributionAlias::Resolute));
 }
 
 #[test]

@@ -81,6 +81,7 @@ fn test_debian_release_roundtrip() {
 
 #[test]
 fn test_ubuntu_release_display() {
+    assert_eq!(UbuntuRelease::Resolute.to_string(), "resolute");
     assert_eq!(UbuntuRelease::Noble.to_string(), "noble");
     assert_eq!(UbuntuRelease::Jammy.to_string(), "jammy");
     assert_eq!(UbuntuRelease::Focal.to_string(), "focal");
@@ -88,6 +89,10 @@ fn test_ubuntu_release_display() {
 
 #[test]
 fn test_ubuntu_release_from_str() {
+    assert_eq!(
+        "resolute".parse::<UbuntuRelease>().unwrap(),
+        UbuntuRelease::Resolute
+    );
     assert_eq!(
         "noble".parse::<UbuntuRelease>().unwrap(),
         UbuntuRelease::Noble
@@ -106,6 +111,7 @@ fn test_ubuntu_release_from_str() {
 #[test]
 fn test_ubuntu_release_roundtrip() {
     for release in [
+        UbuntuRelease::Resolute,
         UbuntuRelease::Noble,
         UbuntuRelease::Jammy,
         UbuntuRelease::Focal,
@@ -139,6 +145,7 @@ fn test_distribution_alias_from_str() {
 fn test_distribution_alias_family() {
     assert_eq!(DistributionAlias::Bookworm.family(), DebianFamily::Debian);
     assert_eq!(DistributionAlias::Jammy.family(), DebianFamily::Ubuntu);
+    assert_eq!(DistributionAlias::Resolute.family(), DebianFamily::Ubuntu);
 }
 
 #[test]
@@ -151,14 +158,26 @@ fn test_distribution_alias_family_name() {
 fn test_distribution_alias_release_name() {
     assert_eq!(DistributionAlias::Bookworm.release_name(), "bookworm");
     assert_eq!(DistributionAlias::Noble.release_name(), "noble");
+    assert_eq!(DistributionAlias::Resolute.release_name(), "resolute");
 }
 
 #[test]
 fn test_distribution_alias_all() {
     let all = DistributionAlias::all();
     assert_eq!(all.len(), 6);
+    assert!(!all.contains(&DistributionAlias::Resolute));
     assert!(all.contains(&DistributionAlias::Bookworm));
     assert!(all.contains(&DistributionAlias::Noble));
+}
+
+#[test]
+fn test_distribution_alias_rabbitmq_supported() {
+    let supported = DistributionAlias::rabbitmq_supported();
+    assert_eq!(supported.len(), 7);
+    assert!(supported.contains(&DistributionAlias::Resolute));
+    for dist in DistributionAlias::all() {
+        assert!(supported.contains(dist));
+    }
 }
 
 #[test]
@@ -168,6 +187,7 @@ fn test_distribution_alias_erlang_supported() {
     assert!(supported.contains(&DistributionAlias::Bookworm));
     assert!(supported.contains(&DistributionAlias::Noble));
     assert!(!supported.contains(&DistributionAlias::Focal));
+    assert!(!supported.contains(&DistributionAlias::Resolute));
     assert!(!supported.contains(&DistributionAlias::Bullseye));
 }
 
@@ -180,6 +200,10 @@ fn test_distribution_alias_to_release() {
     assert_eq!(
         DistributionAlias::Jammy.to_release(),
         Release::Ubuntu(UbuntuRelease::Jammy)
+    );
+    assert_eq!(
+        DistributionAlias::Resolute.to_release(),
+        Release::Ubuntu(UbuntuRelease::Resolute)
     );
 }
 

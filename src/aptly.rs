@@ -395,8 +395,8 @@ pub fn create_repo(name: &str) -> Result<(), BellhopError> {
 }
 
 pub fn expected_repos() -> Vec<(Project, String)> {
-    let mut repos = Vec::with_capacity(16);
-    for dist in DistributionAlias::all() {
+    let mut repos = Vec::with_capacity(17);
+    for dist in DistributionAlias::rabbitmq_supported() {
         repos.push((Project::RabbitMQ, repo_name(&Project::RabbitMQ, dist)));
     }
     for dist in DistributionAlias::erlang_supported() {

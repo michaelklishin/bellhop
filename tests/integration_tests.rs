@@ -618,6 +618,7 @@ fn test_erlang_all_flag_uses_only_supported_distributions() -> Result<(), Box<dy
 fn test_rabbitmq_all_flag_uses_all_distributions() -> Result<(), Box<dyn Error>> {
     let ctx = AptlyTestContext::new()?;
 
+    ctx.create_repo("repo-rabbitmq-server-resolute")?;
     ctx.create_repo("repo-rabbitmq-server-noble")?;
     ctx.create_repo("repo-rabbitmq-server-jammy")?;
     ctx.create_repo("repo-rabbitmq-server-focal")?;
@@ -630,6 +631,10 @@ fn test_rabbitmq_all_flag_uses_all_distributions() -> Result<(), Box<dyn Error>>
     cmd.args(["rabbitmq", "snapshot", "take", "--all", "--suffix", "test"]);
     cmd.assert().success();
 
+    assert!(
+        ctx.snapshot_exists("snap-rabbitmq-server-resolute-test")?,
+        "RabbitMQ should support all distributions including Resolute"
+    );
     assert!(
         ctx.snapshot_exists("snap-rabbitmq-server-noble-test")?,
         "RabbitMQ should support all distributions including Noble"

@@ -39,7 +39,8 @@ pub fn distributions(
     if cli_args.get_flag("all") {
         match project {
             Project::Erlang => Ok(DistributionAlias::erlang_supported().to_vec()),
-            Project::RabbitMQ | Project::CliTools => Ok(DistributionAlias::all().to_vec()),
+            Project::RabbitMQ => Ok(DistributionAlias::rabbitmq_supported().to_vec()),
+            Project::CliTools => Ok(DistributionAlias::all().to_vec()),
         }
     } else {
         cli_args

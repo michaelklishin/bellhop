@@ -132,8 +132,8 @@ fn test_rel_path_with_prefix_cli_tools() {
 #[test]
 fn test_expected_repos_count() {
     let repos = bellhop::aptly::expected_repos();
-    // 6 RabbitMQ + 4 Erlang + 6 CliTools = 16
-    assert_eq!(repos.len(), 16);
+    // 7 RabbitMQ + 4 Erlang + 6 CliTools = 17
+    assert_eq!(repos.len(), 17);
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn test_expected_repos_includes_all_projects() {
         .iter()
         .filter(|(p, _)| *p == Project::CliTools)
         .count();
-    assert_eq!(rabbitmq_count, 6);
+    assert_eq!(rabbitmq_count, 7);
     assert_eq!(erlang_count, 4);
     assert_eq!(cli_count, 6);
 }

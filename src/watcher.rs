@@ -112,7 +112,8 @@ pub fn releases_for_project<'a>(
 ) -> Vec<&'a DistributionAlias> {
     let supported: &[DistributionAlias] = match project {
         Project::Erlang => DistributionAlias::erlang_supported(),
-        Project::RabbitMQ | Project::CliTools => DistributionAlias::all(),
+        Project::RabbitMQ => DistributionAlias::rabbitmq_supported(),
+        Project::CliTools => DistributionAlias::all(),
     };
     target_releases
         .iter()

@@ -75,6 +75,7 @@ impl Display for DebianRelease {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum UbuntuRelease {
+    Resolute,
     Noble,
     Jammy,
     Focal,
@@ -85,6 +86,7 @@ impl FromStr for UbuntuRelease {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "resolute" => Ok(UbuntuRelease::Resolute),
             "noble" => Ok(UbuntuRelease::Noble),
             "jammy" => Ok(UbuntuRelease::Jammy),
             "focal" => Ok(UbuntuRelease::Focal),
@@ -96,6 +98,7 @@ impl FromStr for UbuntuRelease {
 impl Display for UbuntuRelease {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            UbuntuRelease::Resolute => write!(f, "resolute"),
             UbuntuRelease::Noble => write!(f, "noble"),
             UbuntuRelease::Jammy => write!(f, "jammy"),
             UbuntuRelease::Focal => write!(f, "focal"),
@@ -143,6 +146,7 @@ impl FromStr for Release {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DistributionAlias {
+    Resolute,
     Noble,
     Jammy,
     Focal,
@@ -156,6 +160,7 @@ impl FromStr for DistributionAlias {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "resolute" => Ok(DistributionAlias::Resolute),
             "noble" => Ok(DistributionAlias::Noble),
             "jammy" => Ok(DistributionAlias::Jammy),
             "focal" => Ok(DistributionAlias::Focal),
@@ -178,6 +183,7 @@ impl From<DistributionAlias> for Release {
 impl Display for DistributionAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            DistributionAlias::Resolute => write!(f, "resolute"),
             DistributionAlias::Noble => write!(f, "noble"),
             DistributionAlias::Jammy => write!(f, "jammy"),
             DistributionAlias::Focal => write!(f, "focal"),
@@ -191,6 +197,7 @@ impl Display for DistributionAlias {
 impl DistributionAlias {
     pub fn to_release(&self) -> Release {
         match self {
+            DistributionAlias::Resolute => Release::Ubuntu(UbuntuRelease::Resolute),
             DistributionAlias::Noble => Release::Ubuntu(UbuntuRelease::Noble),
             DistributionAlias::Jammy => Release::Ubuntu(UbuntuRelease::Jammy),
             DistributionAlias::Focal => Release::Ubuntu(UbuntuRelease::Focal),
@@ -202,9 +209,10 @@ impl DistributionAlias {
 
     pub fn family(&self) -> DebianFamily {
         match self {
-            DistributionAlias::Noble | DistributionAlias::Jammy | DistributionAlias::Focal => {
-                DebianFamily::Ubuntu
-            }
+            DistributionAlias::Resolute
+            | DistributionAlias::Noble
+            | DistributionAlias::Jammy
+            | DistributionAlias::Focal => DebianFamily::Ubuntu,
             DistributionAlias::Trixie
             | DistributionAlias::Bookworm
             | DistributionAlias::Bullseye => DebianFamily::Debian,
@@ -220,6 +228,7 @@ impl DistributionAlias {
 
     pub fn release_name(&self) -> &'static str {
         match self {
+            DistributionAlias::Resolute => "resolute",
             DistributionAlias::Noble => "noble",
             DistributionAlias::Jammy => "jammy",
             DistributionAlias::Focal => "focal",
@@ -239,6 +248,19 @@ impl DistributionAlias {
             DistributionAlias::Bullseye,
         ];
         &ALL_DISTRIBUTIONS
+    }
+
+    pub fn rabbitmq_supported() -> &'static [DistributionAlias] {
+        const RABBITMQ_SUPPORTED: [DistributionAlias; 7] = [
+            DistributionAlias::Resolute,
+            DistributionAlias::Noble,
+            DistributionAlias::Jammy,
+            DistributionAlias::Focal,
+            DistributionAlias::Trixie,
+            DistributionAlias::Bookworm,
+            DistributionAlias::Bullseye,
+        ];
+        &RABBITMQ_SUPPORTED
     }
 
     pub fn erlang_supported() -> &'static [DistributionAlias] {
