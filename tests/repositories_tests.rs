@@ -51,15 +51,15 @@ fn test_repositories_setup_creates_all_repos() -> Result<(), Box<dyn Error>> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let repos: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
 
-    // 7 RabbitMQ + 4 Erlang + 6 CLI tools = 17
-    assert_eq!(repos.len(), 17, "Should create all 17 expected repos");
+    // 7 RabbitMQ + 5 Erlang + 6 CLI tools = 18
+    assert_eq!(repos.len(), 18, "Should create all 18 expected repos");
 
     assert!(
         repos.contains(&"repo-rabbitmq-server-resolute"),
         "Should create RabbitMQ repo for resolute"
     );
     assert!(!repos.contains(&"repo-rabbitmq-cli-resolute"));
-    assert!(!repos.contains(&"repo-rabbitmq-erlang-resolute"));
+    assert!(repos.contains(&"repo-rabbitmq-erlang-resolute"));
 
     for dist in ["noble", "jammy", "focal", "trixie", "bookworm", "bullseye"] {
         assert!(
@@ -106,7 +106,7 @@ fn test_repositories_setup_is_idempotent() -> Result<(), Box<dyn Error>> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let repos: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
 
-    assert_eq!(repos.len(), 17, "Should still have exactly 17 repos");
+    assert_eq!(repos.len(), 18, "Should still have exactly 18 repos");
 
     Ok(())
 }
@@ -135,8 +135,8 @@ fn test_repositories_setup_creates_only_missing() -> Result<(), Box<dyn Error>> 
 
     assert_eq!(
         repos.len(),
-        17,
-        "Should have all 17 repos after filling in missing ones"
+        18,
+        "Should have all 18 repos after filling in missing ones"
     );
 
     Ok(())

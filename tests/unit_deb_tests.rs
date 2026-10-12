@@ -183,11 +183,11 @@ fn test_distribution_alias_rabbitmq_supported() {
 #[test]
 fn test_distribution_alias_erlang_supported() {
     let supported = DistributionAlias::erlang_supported();
-    assert_eq!(supported.len(), 4);
+    assert_eq!(supported.len(), 5);
+    assert!(supported.contains(&DistributionAlias::Resolute));
     assert!(supported.contains(&DistributionAlias::Bookworm));
     assert!(supported.contains(&DistributionAlias::Noble));
     assert!(!supported.contains(&DistributionAlias::Focal));
-    assert!(!supported.contains(&DistributionAlias::Resolute));
     assert!(!supported.contains(&DistributionAlias::Bullseye));
 }
 

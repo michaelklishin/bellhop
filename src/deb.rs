@@ -264,7 +264,8 @@ impl DistributionAlias {
     }
 
     pub fn erlang_supported() -> &'static [DistributionAlias] {
-        const ERLANG_SUPPORTED: [DistributionAlias; 4] = [
+        const ERLANG_SUPPORTED: [DistributionAlias; 5] = [
+            DistributionAlias::Resolute,
             DistributionAlias::Noble,
             DistributionAlias::Jammy,
             DistributionAlias::Trixie,

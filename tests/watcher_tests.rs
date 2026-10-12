@@ -71,9 +71,10 @@ fn test_project_for_directory_unknown() {
 
 #[test]
 fn test_releases_for_project_filters_erlang() {
-    let all = DistributionAlias::all().to_vec();
+    let mut all = DistributionAlias::all().to_vec();
+    all.push(DistributionAlias::Resolute);
     let erlang_dists = watcher::releases_for_project(&Project::Erlang, &all);
-    assert_eq!(erlang_dists.len(), 4);
+    assert_eq!(erlang_dists.len(), 5);
     assert!(!erlang_dists.contains(&&DistributionAlias::Focal));
     assert!(!erlang_dists.contains(&&DistributionAlias::Bullseye));
 }

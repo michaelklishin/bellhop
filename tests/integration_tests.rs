@@ -574,6 +574,7 @@ fn test_missing_required_argument_fails() -> Result<(), Box<dyn Error>> {
 fn test_erlang_all_flag_uses_only_supported_distributions() -> Result<(), Box<dyn Error>> {
     let ctx = AptlyTestContext::new()?;
 
+    ctx.create_repo("repo-rabbitmq-erlang-resolute")?;
     ctx.create_repo("repo-rabbitmq-erlang-noble")?;
     ctx.create_repo("repo-rabbitmq-erlang-jammy")?;
     ctx.create_repo("repo-rabbitmq-erlang-trixie")?;
@@ -586,6 +587,10 @@ fn test_erlang_all_flag_uses_only_supported_distributions() -> Result<(), Box<dy
     cmd.args(["erlang", "snapshot", "take", "--all", "--suffix", "test"]);
     cmd.assert().success();
 
+    assert!(
+        ctx.snapshot_exists("snap-rabbitmq-erlang-resolute-test")?,
+        "Resolute should be supported for Erlang"
+    );
     assert!(
         ctx.snapshot_exists("snap-rabbitmq-erlang-noble-test")?,
         "Noble should be supported for Erlang"
